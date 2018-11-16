@@ -1,9 +1,13 @@
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <git2.h>
 #include <memory>
 #include <string_view>
+#include <unistd.h>
 #include <vector>
 
 namespace meta {
@@ -93,6 +97,63 @@ std::vector <std::string> collectFilenames(git_diff *diff)
 	return result;
 }
 
+int processFiles(const std::vector <std::string> &files)
+{
+	int errCode = 0;
+
+	for (const auto &file : files) {
+		printf("[Processing file: %s]\n", file.c_str());
+		int pipeFd[2];
+		if (pipe(pipeFd) == -1) {
+			perror("pipe");
+			exit(1);
+		}
+
+		const pid_t pid = fork();
+		switch (pid) {
+			case -1:
+				perror("Fatal error on fork");
+				exit(1);
+			case 0:
+				dup2(pipeFd[1], STDERR_FILENO);
+				close(pipeFd[0]);
+				close(pipeFd[1]);
+
+				//TODO hardcoded path
+				execl("./Lucy", "./Lucy", file.c_str(), (char *)NULL);
+				perror("exec");
+				exit(1);
+				break;
+			default: {
+				close(pipeFd[1]);
+
+				ssize_t rv;
+				while ((rv = splice(pipeFd[0], nullptr, STDOUT_FILENO, nullptr, 64 << 10, 0)) > 0);
+
+				if (rv == -1) {
+					const int err = errno;
+					fprintf(stderr, "splice() with pid = %d: %s\n", pid, strerror(err));
+				}
+
+				int exitStatus;
+				wait(&exitStatus);
+				if (WIFEXITED(exitStatus)) {
+					printf("Process %d terminated with exit code %d\n", pid, WEXITSTATUS(exitStatus));
+					if (exitStatus != 0)
+						errCode |= 1;
+				} else {
+					printf("Process %d terminated abnormally\n", pid);
+					errCode |= 2;
+				}
+
+				close(pipeFd[0]);
+			}
+		}
+	}
+
+	return errCode;
+}
+
 int main()
 {
 	git_libgit2_init();
@@ -105,5 +166,5 @@ int main()
 	auto diff = execute("diff", &git_diff_tree_to_index, repo.get(), head.get(), nullptr, &diffOpts);
 	auto files = collectFilenames(diff.get());
 
-	return 0;
+	return processFiles(files);
 }
