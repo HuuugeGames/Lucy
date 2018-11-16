@@ -1,7 +1,10 @@
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <git2.h>
 #include <memory>
-#include <stdio.h>
-#include <stdlib.h>
+#include <string_view>
+#include <vector>
 
 namespace meta {
 	template <typename T, typename Deleter>
@@ -68,12 +71,26 @@ auto getTree(const T &repo, const char *treeish)
 	return meta::git_unique_ptr(reinterpret_cast<git_tree *>(peeled.release()));
 }
 
-int printer(const git_diff_delta *delta, const git_diff_hunk *hunk, const git_diff_line *line, void *payload)
+std::vector <std::string> collectFilenames(git_diff *diff)
 {
-	if (delta->status != GIT_DELTA_ADDED && delta->status != GIT_DELTA_MODIFIED)
+	std::vector <std::string> result;
+	auto fileCallback = [](const git_diff_delta *delta, float, void *payload) -> int
+	{
+		if (delta->status != GIT_DELTA_ADDED && delta->status != GIT_DELTA_MODIFIED)
+			return 0;
+
+		std::string_view filename{delta->new_file.path};
+		const char extension[] = ".lua";
+		if (filename.size() < sizeof(extension) || strcmp(extension, &filename[filename.size() - sizeof(extension) + 1]) != 0)
+			return 0;
+
+		auto fileList = reinterpret_cast<std::vector <std::string> *>(payload);
+		fileList->emplace_back(filename);
 		return 0;
-	fwrite(line->content, 1, line->content_len, stdout);
-	return 0;
+	};
+
+	git_diff_foreach(diff, fileCallback, nullptr, nullptr, nullptr, &result);
+	return result;
 }
 
 int main()
@@ -86,7 +103,7 @@ int main()
 
 	git_diff_options diffOpts = GIT_DIFF_OPTIONS_INIT;
 	auto diff = execute("diff", &git_diff_tree_to_index, repo.get(), head.get(), nullptr, &diffOpts);
-	git_diff_print(diff.get(), GIT_DIFF_FORMAT_NAME_ONLY, printer, nullptr);
+	auto files = collectFilenames(diff.get());
 
 	return 0;
 }
