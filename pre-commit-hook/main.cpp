@@ -1,14 +1,17 @@
-#include <sys/types.h>
-#include <sys/wait.h>
+#include <sys/select.h>
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fcntl.h>
 #include <git2.h>
 #include <memory>
 #include <string_view>
+#include <thread>
 #include <unistd.h>
 #include <vector>
+
+#include "Config.hpp"
+#include "Job.hpp"
 
 namespace meta {
 	template <typename T, typename Deleter>
@@ -97,56 +100,52 @@ std::vector <std::string> collectFilenames(git_diff *diff)
 	return result;
 }
 
-int processFiles(const std::vector <std::string> &files)
+int processFiles(const Config &cfg, std::vector <std::string> &files)
 {
-	int errCode = 0;
+	assert(cfg.maxParallelJobs != 0);
+	enum { OK = 0, LucyCheck = 1, LucyFail = 2, Internal = 4 }; //TODO
 
-	for (const auto &file : files) {
-		printf("[Processing file: %s]\n", file.c_str());
-		int pipeFd[2];
-		if (pipe(pipeFd) == -1) {
-			perror("pipe");
-			exit(1);
+	int errCode = 0;
+	unsigned int runningJobs = 0;
+	std::vector <Job> jobs{cfg.maxParallelJobs};
+
+	while (runningJobs != 0 || !files.empty()) {
+		while (!files.empty() && runningJobs < cfg.maxParallelJobs) {
+			size_t i = 0;
+			while (jobs[i].state() != Job::State::Init)
+				++i;
+			if (!jobs[i].start(std::move(files.back())))
+				return Internal;
+
+			files.pop_back();
+			++runningJobs;
 		}
 
-		const pid_t pid = fork();
-		switch (pid) {
-			case -1:
-				perror("Fatal error on fork");
-				exit(1);
-			case 0:
-				dup2(pipeFd[1], STDERR_FILENO);
-				close(pipeFd[0]);
-				close(pipeFd[1]);
+		fd_set fds;
+		int maxFd = 0;
 
-				//TODO hardcoded path
-				execl("./Lucy", "./Lucy", file.c_str(), (char *)NULL);
-				perror("exec");
-				exit(1);
-				break;
-			default: {
-				close(pipeFd[1]);
+		FD_ZERO(&fds);
+		for (const auto &j : jobs) {
+			if (j.state() == Job::State::Working) {
+				FD_SET(j.fd(), &fds);
+				maxFd = std::max(maxFd, j.fd());
+			}
+		}
 
-				ssize_t rv;
-				while ((rv = splice(pipeFd[0], nullptr, STDOUT_FILENO, nullptr, 64 << 10, 0)) > 0);
+		if (select(maxFd + 1, &fds, nullptr, nullptr, nullptr) == -1) {
+			perror("select");
+			return Internal;
+		}
 
-				if (rv == -1) {
-					const int err = errno;
-					fprintf(stderr, "splice() with pid = %d: %s\n", pid, strerror(err));
-				}
-
-				int exitStatus;
-				wait(&exitStatus);
-				if (WIFEXITED(exitStatus)) {
-					printf("Process %d terminated with exit code %d\n", pid, WEXITSTATUS(exitStatus));
-					if (exitStatus != 0)
-						errCode |= 1;
-				} else {
-					printf("Process %d terminated abnormally\n", pid);
-					errCode |= 2;
-				}
-
-				close(pipeFd[0]);
+		for (auto &j : jobs) {
+			if (j.state() == Job::State::Working && FD_ISSET(j.fd(), &fds))
+				j.process();
+			if (j.state() == Job::State::Finished) {
+				//TODO job exit code handling
+				if (!j.output().empty())
+					printf("[%s]\n%s\n", j.filename().c_str(), j.output().c_str());
+				j.reset();
+				--runningJobs;
 			}
 		}
 	}
@@ -166,5 +165,9 @@ int main()
 	auto diff = execute("diff", &git_diff_tree_to_index, repo.get(), head.get(), nullptr, &diffOpts);
 	auto files = collectFilenames(diff.get());
 
-	return processFiles(files);
+	Config cfg;
+	//TODO cmdline
+	cfg.maxParallelJobs = std::max(1u, std::thread::hardware_concurrency());
+
+	return processFiles(cfg, files);
 }
