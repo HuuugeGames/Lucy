@@ -13,6 +13,7 @@ public:
 	Job();
 	~Job();
 
+	int exitStatus() { return m_exitStatus; }
 	int fd() const { return m_pipeFd; }
 	const std::string & filename() const { return m_filename; }
 	const std::string & output() const { return m_output; }

@@ -138,12 +138,30 @@ int processFiles(const Config &cfg, std::vector <std::string> &files)
 		}
 
 		for (auto &j : jobs) {
-			if (j.state() == Job::State::Working && FD_ISSET(j.fd(), &fds))
-				j.process();
+			if (j.state() != Job::State::Working || !FD_ISSET(j.fd(), &fds))
+				continue;
+
+			j.process();
+
 			if (j.state() == Job::State::Finished) {
-				//TODO job exit code handling
+				printf("[Checking file: %s]\n", j.filename().c_str());
 				if (!j.output().empty())
-					printf("[%s]\n%s\n", j.filename().c_str(), j.output().c_str());
+					printf("%s\n", j.output().c_str());
+
+				const int status = j.exitStatus();
+				if (WIFEXITED(status)) {
+					const int exitStatus = WEXITSTATUS(status);
+					if (exitStatus != 0) {
+						errCode |= LucyCheck;
+						printf("Job exited with code %d\n", exitStatus);
+					}
+				}
+
+				if (WIFSIGNALED(status)) {
+					errCode |= LucyFail;
+					printf("Job killed with signal %d\n", WTERMSIG(status));
+				}
+
 				j.reset();
 				--runningJobs;
 			}
