@@ -72,6 +72,7 @@ void Job::process()
 		m_state = State::Finished;
 		close(m_pipeFd);
 		m_pipeFd = -1;
+		m_output.resize(m_outputOffset);
 		waitpid(m_pid, &m_exitStatus, 0);
 	}
 
