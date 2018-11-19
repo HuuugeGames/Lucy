@@ -2,8 +2,10 @@
 #include <sys/wait.h>
 #include <cassert>
 #include <cstdio>
+#include <cstring>
 #include <unistd.h>
 
+#include "Config.hpp"
 #include "Job.hpp"
 
 Job::Job()
@@ -16,7 +18,7 @@ Job::~Job()
 	assert(m_pipeFd == -1);
 }
 
-bool Job::start(std::string &&filename)
+bool Job::start(const Config &cfg, std::string &&filename)
 {
 	assert(m_state == State::Init);
 	m_filename = std::move(filename);
@@ -39,9 +41,8 @@ bool Job::start(std::string &&filename)
 			close(pipeFd[0]);
 			close(pipeFd[1]);
 
-			//TODO hardcoded path
-			execl("./Lucy", "./Lucy", m_filename.c_str(), (char *)NULL);
-			perror("exec");
+			execl(cfg.lucyPath.c_str(), cfg.lucyPath.c_str(), m_filename.c_str(), (char *)NULL);
+			fprintf(stderr, "Cannot exec %s: %s\n", cfg.lucyPath.c_str(), strerror(errno));
 			exit(1);
 			break;
 		default: {

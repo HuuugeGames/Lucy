@@ -6,7 +6,6 @@
 #include <git2.h>
 #include <memory>
 #include <string_view>
-#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -114,7 +113,7 @@ int processFiles(const Config &cfg, std::vector <std::string> &files)
 			size_t i = 0;
 			while (jobs[i].state() != Job::State::Init)
 				++i;
-			if (!jobs[i].start(std::move(files.back())))
+			if (!jobs[i].start(cfg, std::move(files.back())))
 				return Internal;
 
 			files.pop_back();
@@ -171,7 +170,7 @@ int processFiles(const Config &cfg, std::vector <std::string> &files)
 	return errCode;
 }
 
-int main()
+int main(int argc, char **argv)
 {
 	git_libgit2_init();
 	atexit([]{git_libgit2_shutdown();});
@@ -184,8 +183,8 @@ int main()
 	auto files = collectFilenames(diff.get());
 
 	Config cfg;
-	//TODO cmdline
-	cfg.maxParallelJobs = std::max(1u, std::thread::hardware_concurrency());
+	if (!cfg.parse(argc, argv))
+		return 1;
 
 	return processFiles(cfg, files);
 }

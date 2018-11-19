@@ -3,6 +3,7 @@ set(GIT_HOOK pre-commit-${PROJECT_NAME})
 pkg_check_modules(LIBGIT2 libgit2)
 
 add_executable(${GIT_HOOK}
+	Config.cpp
 	Job.cpp
 	main.cpp
 )

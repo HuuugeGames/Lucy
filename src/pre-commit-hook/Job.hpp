@@ -2,6 +2,8 @@
 
 #include <string>
 
+struct Config;
+
 class Job {
 public:
 	enum class State {
@@ -22,7 +24,7 @@ public:
 
 	void process();
 	void reset();
-	bool start(std::string &&filename);
+	bool start(const Config &cfg, std::string &&filename);
 
 private:
 	std::string m_filename;
