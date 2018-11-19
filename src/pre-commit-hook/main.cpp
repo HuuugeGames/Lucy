@@ -6,7 +6,6 @@
 #include <git2.h>
 #include <memory>
 #include <string_view>
-#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -114,7 +113,7 @@ int processFiles(const Config &cfg, std::vector <std::string> &files)
 			size_t i = 0;
 			while (jobs[i].state() != Job::State::Init)
 				++i;
-			if (!jobs[i].start(std::move(files.back())))
+			if (!jobs[i].start(cfg, std::move(files.back())))
 				return Internal;
 
 			files.pop_back();
@@ -138,12 +137,30 @@ int processFiles(const Config &cfg, std::vector <std::string> &files)
 		}
 
 		for (auto &j : jobs) {
-			if (j.state() == Job::State::Working && FD_ISSET(j.fd(), &fds))
-				j.process();
+			if (j.state() != Job::State::Working || !FD_ISSET(j.fd(), &fds))
+				continue;
+
+			j.process();
+
 			if (j.state() == Job::State::Finished) {
-				//TODO job exit code handling
+				printf("[Checking file: %s]\n", j.filename().c_str());
 				if (!j.output().empty())
-					printf("[%s]\n%s\n", j.filename().c_str(), j.output().c_str());
+					printf("%s\n", j.output().c_str());
+
+				const int status = j.exitStatus();
+				if (WIFEXITED(status)) {
+					const int exitStatus = WEXITSTATUS(status);
+					if (exitStatus != 0) {
+						errCode |= LucyCheck;
+						printf("Job exited with code %d\n", exitStatus);
+					}
+				}
+
+				if (WIFSIGNALED(status)) {
+					errCode |= LucyFail;
+					printf("Job killed with signal %d\n", WTERMSIG(status));
+				}
+
 				j.reset();
 				--runningJobs;
 			}
@@ -153,7 +170,7 @@ int processFiles(const Config &cfg, std::vector <std::string> &files)
 	return errCode;
 }
 
-int main()
+int main(int argc, char **argv)
 {
 	git_libgit2_init();
 	atexit([]{git_libgit2_shutdown();});
@@ -166,8 +183,8 @@ int main()
 	auto files = collectFilenames(diff.get());
 
 	Config cfg;
-	//TODO cmdline
-	cfg.maxParallelJobs = std::max(1u, std::thread::hardware_concurrency());
+	if (!cfg.parse(argc, argv))
+		return 1;
 
 	return processFiles(cfg, files);
 }

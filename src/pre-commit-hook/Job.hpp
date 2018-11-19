@@ -2,6 +2,8 @@
 
 #include <string>
 
+struct Config;
+
 class Job {
 public:
 	enum class State {
@@ -13,6 +15,7 @@ public:
 	Job();
 	~Job();
 
+	int exitStatus() { return m_exitStatus; }
 	int fd() const { return m_pipeFd; }
 	const std::string & filename() const { return m_filename; }
 	const std::string & output() const { return m_output; }
@@ -21,7 +24,7 @@ public:
 
 	void process();
 	void reset();
-	bool start(std::string &&filename);
+	bool start(const Config &cfg, std::string &&filename);
 
 private:
 	std::string m_filename;
