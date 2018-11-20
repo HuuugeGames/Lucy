@@ -27,7 +27,7 @@ bool Config::parse(unsigned argc, char **argv)
 
 			char *parseEnd;
 			errno = 0;
-			unsigned long parallelJobs = strtoul(s, &parseEnd, 10);
+			unsigned long parallelJobs = strtoul(argv[idx], &parseEnd, 10);
 			if (errno == ERANGE || *parseEnd != '\0') {
 				fprintf(stderr, "Invalid number of jobs passed: %s\n", argv[idx]);
 				return false;
