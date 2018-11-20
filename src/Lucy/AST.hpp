@@ -1304,7 +1304,7 @@ public:
 		if (v->valueType() == ValueType::Integer) {
 			op = binopType(static_cast<const IntValue *>(v)->value());
 		} else if (v->valueType() == ValueType::Real) {
-			op = binopType(static_cast<const IntValue *>(v)->value());
+			op = binopType(static_cast<const RealValue *>(v)->value());
 		}
 
 		assert(op != BinOp::Type::_last);
