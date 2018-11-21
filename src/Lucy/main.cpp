@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "ControlFlowGraph.hpp"
 #include "Driver.hpp"
 #include "Serial.hpp"
 
@@ -15,6 +16,9 @@ int main(int argc, char **argv)
 
 	if (d.parse() != 0)
 		return 1;
+
+	ControlFlowGraph cfg{*d.chunks()[0]};
+	cfg.graphvizDump("cfg.dot");
 
 	return 0;
 }

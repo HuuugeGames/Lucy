@@ -79,6 +79,12 @@ class Chunk : public Node {
 public:
 	Chunk() = default;
 
+	Chunk(std::initializer_list <Node *> statements)
+	{
+		for (auto s : statements)
+			append(s);
+	}
+
 	void append(Node *n) { m_children.emplace_back(n); }
 
 	const std::vector <std::unique_ptr <Node> > & children() const { return m_children; }
@@ -155,6 +161,12 @@ private:
 class ExprList : public Node {
 public:
 	ExprList() = default;
+
+	ExprList(std::initializer_list <Node *> exprs)
+	{
+		for (auto expr : exprs)
+			append(expr);
+	}
 
 	void append(Node *n) { m_exprs.emplace_back(n); }
 
@@ -299,6 +311,12 @@ class VarList : public Node {
 public:
 	VarList() = default;
 
+	VarList(std::initializer_list <const char *> varNames)
+	{
+		for (auto varName : varNames)
+			append(new LValue{varName});
+	}
+
 	void append(LValue *lval)
 	{
 		m_vars.emplace_back(lval);
@@ -373,6 +391,11 @@ public:
 		m_exprList->append(expr);
 	}
 
+	Assignment(const std::string &dstVar, const std::string &srcVar)
+		: Assignment{dstVar, new LValue{srcVar}}
+	{
+	}
+
 	Assignment(const std::string &name, std::unique_ptr <Node> &&expr)
 		: Assignment{name, expr.release()}
 	{
@@ -418,6 +441,8 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
+		if (m_local)
+			os << "<b>local</b> ";
 		m_varList->printCode(os);
 		os << " = ";
 		m_exprList->printCode(os);
@@ -933,7 +958,7 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
-		os << "break\n";
+		os << "<b>break</b>\n";
 	}
 
 	Node::Type type() const override { return Node::Type::Break; }
@@ -1336,14 +1361,14 @@ private:
 
 class ForEach : public Node {
 public:
-	ForEach(ParamList *iterators, ExprList *exprs, Chunk *chunk)
-		: m_iterators{iterators}, m_exprs{exprs}, m_chunk{chunk} {}
+	ForEach(ParamList *variables, ExprList *exprs, Chunk *chunk)
+		: m_variables{variables}, m_exprs{exprs}, m_chunk{chunk} {}
 
 	void print(int indent = 0) const override
 	{
 		do_indent(indent);
 		std::cout << "for_each:\n";
-		m_iterators->print(indent + 1);
+		m_variables->print(indent + 1);
 
 		do_indent(indent);
 		std::cout << "in:\n";
@@ -1356,20 +1381,38 @@ public:
 
 	Node::Type type() const override { return Node::Type::ForEach; }
 
+	const ParamList & variables() const { return *m_variables; }
+	const ExprList & exprList() const { return *m_exprs; }
+
 	std::unique_ptr <Node> clone() const override
 	{
 		return std::unique_ptr <ForEach>{new ForEach{*this}};
 	}
 
+	std::unique_ptr <ParamList> cloneVariables() const
+	{
+		return std::unique_ptr <ParamList>{static_cast<ParamList *>(m_variables->clone().release())};
+	}
+
+	std::unique_ptr <ExprList> cloneExprList() const
+	{
+		return std::unique_ptr <ExprList>{static_cast<ExprList *>(m_exprs->clone().release())};
+	}
+
+	std::unique_ptr <Chunk> cloneChunk() const
+	{
+		return std::unique_ptr <Chunk>{static_cast<Chunk *>(m_chunk->clone().release())};
+	}
+
 private:
 	ForEach(const ForEach &other)
-		: m_iterators{static_cast<ParamList *>(other.m_iterators->clone().release())},
+		: m_variables{static_cast<ParamList *>(other.m_variables->clone().release())},
 		  m_exprs{static_cast<ExprList *>(other.m_exprs->clone().release())},
 		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
 	{
 	}
 
-	std::unique_ptr <ParamList> m_iterators;
+	std::unique_ptr <ParamList> m_variables;
 	std::unique_ptr <ExprList> m_exprs;
 	std::unique_ptr <Chunk> m_chunk;
 };
