@@ -6,17 +6,29 @@
 #include "ControlFlowGraph.hpp"
 #include "Serial.hpp"
 
+struct CFGContext {
+	std::vector <BasicBlock *> breakBlocks;
+};
+
 ControlFlowGraph::ControlFlowGraph(const Chunk &chunk)
 {
-	std::tie(m_entry, m_exit) = processChunk(chunk);
+	CFGContext ctx;
+	std::tie(m_entry, m_exit) = processChunk(ctx, chunk);
 }
 
-std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chunk &chunk)
+std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext &ctx, const Chunk &chunk)
 {
 	auto makeBB = [this]
 	{
 		m_blocks.emplace_back(std::make_unique<BasicBlock>(m_blockSerial.next()));
 		return m_blocks.back().get();
+	};
+
+	auto redirectBreaks = [this, &ctx](BasicBlock *dst)
+	{
+		for (auto bb : ctx.breakBlocks)
+			bb->nextBlock[0] = dst;
+		ctx.breakBlocks.clear();
 	};
 
 	auto entry = makeBB();
@@ -30,7 +42,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 
 		switch (insn->type()) {
 			case Node::Type::Break:
-				//TODO break from loop
+				ctx.breakBlocks.push_back(current);
 				current->exitType = BasicBlock::ExitType::Break;
 				[[fallthrough]]
 			case Node::Type::Assignment:
@@ -40,7 +52,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 				break;
 			case Node::Type::Chunk: {
 				const Chunk *subChunk = static_cast<const Chunk *>(insn.get());
-				auto [entry, exit] = processChunk(*subChunk);
+				auto [entry, exit] = processChunk(ctx, *subChunk);
 				current->nextBlock[0] = entry;
 				current = makeBB();
 				exit->nextBlock[0] = current;
@@ -68,7 +80,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 					current->exitType = BasicBlock::ExitType::Conditional;
 					current->condition = cond[i].get();
 
-					auto [entry, exit] = processChunk(*chunks[i]);
+					auto [entry, exit] = processChunk(ctx, *chunks[i]);
 					exits.emplace_back(exit);
 
 					previous = current;
@@ -82,7 +94,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 
 				current = makeBB();
 				if (ifNode->hasElse()) {
-					auto [entry, exit] = processChunk(ifNode->elseNode());
+					auto [entry, exit] = processChunk(ctx, ifNode->elseNode());
 					exits.emplace_back(exit);
 					previous->nextBlock[1] = entry;
 				} else {
@@ -102,17 +114,18 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 				previous->nextBlock[0] = current;
 				previous = current;
 
-				auto [entry, exit] = processChunk(whileNode->chunk());
+				auto [entry, exit] = processChunk(ctx, whileNode->chunk());
 				current = makeBB();
 
 				previous->nextBlock[0] = entry;
 				previous->nextBlock[1] = current;
 				exit->nextBlock[0] = previous;
+				redirectBreaks(current);
 				break;
 			}
 			case Node::Type::Repeat: {
 				const Repeat *repeatNode = static_cast<const Repeat *>(insn.get());
-				auto [entry, exit] = processChunk(repeatNode->chunk());
+				auto [entry, exit] = processChunk(ctx, repeatNode->chunk());
 				current->nextBlock[0] = entry;
 
 				current = makeBB();
@@ -124,6 +137,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 				auto previous = current;
 				current = makeBB();
 				previous->nextBlock[0] = current;
+				redirectBreaks(current);
 				break;
 			}
 			case Node::Type::For: {
@@ -141,7 +155,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 				m_additionalNodes.emplace_back(std::move(condition));
 
 				previous = current;
-				auto [entry, exit] = processChunk(forNode->chunk());
+				auto [entry, exit] = processChunk(ctx, forNode->chunk());
 				previous->nextBlock[0] = entry;
 				exit->nextBlock[0] = previous;
 
@@ -151,14 +165,16 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 
 				current = makeBB();
 				previous->nextBlock[1] = current;
+				redirectBreaks(current);
 				break;
 			}
 			case Node::Type::ForEach: {
 				const ForEach *forEachNode = static_cast<const ForEach *>(insn.get());
-				auto [entry, exit] = processChunk(generateClosure(*forEachNode));
+				auto [entry, exit] = processChunk(ctx, rewrite(ctx, *forEachNode));
 				current->nextBlock[0] = entry;
 				current = makeBB();
 				exit->nextBlock[0] = current;
+				redirectBreaks(current);
 				break;
 			}
 			default:
@@ -170,7 +186,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(const Chun
 	return {entry, current};
 }
 
-const Chunk & ControlFlowGraph::generateClosure(const ForEach &forEach)
+const Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const ForEach &forEach)
 {
 	const char IteratorFn[] = "__f";
 	const char InvariantState[] = "__s";

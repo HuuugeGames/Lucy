@@ -6,6 +6,7 @@
 #include "BasicBlock.hpp"
 #include "Serial.hpp"
 
+class CFGContext;
 class Chunk;
 class ForEach;
 class Node;
@@ -21,8 +22,8 @@ public:
 	void graphvizDump(const char *filename);
 
 private:
-	const Chunk & generateClosure(const ForEach &forEach);
-	std::pair <BasicBlock *, BasicBlock *> processChunk(const Chunk &chunk);
+	std::pair <BasicBlock *, BasicBlock *> processChunk(CFGContext &ctx, const Chunk &chunk);
+	const Chunk & rewrite(CFGContext &ctx, const ForEach &forEach);
 
 	Serial m_blockSerial;
 	std::vector <std::unique_ptr <BasicBlock> > m_blocks;
