@@ -139,6 +139,23 @@ public:
 		std::cout << '\n';
 	}
 
+	void printCode(std::ostream &os) const override
+	{
+		if (m_names.empty()) {
+			if (m_ellipsis)
+				os << "( ... )";
+			else
+				os << "()";
+
+			return;
+		}
+
+		os << "( " << m_names[0];
+		for (size_t i = 1; i < m_names.size(); ++i)
+			os << ", " << m_names[i];
+		os << " )";
+	}
+
 	const std::vector <std::string> & names() const { return m_names; }
 
 	Node::Type type() const override { return Type::ParamList; }
@@ -170,6 +187,8 @@ public:
 
 	void append(Node *n) { m_exprs.emplace_back(n); }
 
+	bool empty() const { return m_exprs.empty(); }
+
 	const std::vector <std::unique_ptr <Node> > & exprs() const { return m_exprs; }
 
 	void print(int indent = 0) const override
@@ -184,12 +203,13 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
-		bool first = true;
-		for (const auto &expr : m_exprs) {
-			if (!first)
-				os << ", ";
-			first = false;
-			expr->printCode(os);
+		if (m_exprs.empty())
+			return;
+		m_exprs[0]->printCode(os);
+
+		for (size_t i = 1; i < m_exprs.size(); ++i) {
+			os << ", ";
+			m_exprs[i]->printCode(os);
 		}
 	}
 
@@ -444,8 +464,10 @@ public:
 		if (m_local)
 			os << "<b>local</b> ";
 		m_varList->printCode(os);
-		os << " = ";
-		m_exprList->printCode(os);
+		if (!m_exprList->empty()) {
+			os << " = ";
+			m_exprList->printCode(os);
+		}
 	}
 
 	Node::Type type() const override { return Type::Assignment; }
@@ -631,9 +653,14 @@ public:
 	void printCode(std::ostream &os) const override
 	{
 		m_functionExpr->printCode(os);
-		os << '(';
+		if (m_args->empty()) {
+			os << "()";
+			return;
+		}
+
+		os << "( ";
 		m_args->printCode(os);
-		os << ')';
+		os << " )";
 	}
 
 	const Node & functionExpr() const { return *m_functionExpr; }
@@ -672,6 +699,21 @@ public:
 		do_indent(indent);
 		std::cout << "Method name: " << m_methodName << '\n';
 		args().print(indent + 1);
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		functionExpr().printCode(os);
+		os << ':' << m_methodName;
+
+		if (args().empty()) {
+			os << "()";
+			return;
+		}
+
+		os << "( ";
+		args().printCode(os);
+		os << " )";
 	}
 
 	Node::Type type() const override { return Type::MethodCall; }
@@ -722,6 +764,24 @@ public:
 		}
 
 		m_valueExpr->print(indent + 1);
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		switch (m_type) {
+			case Type::Brackets:
+				os << '[';
+				m_keyExpr->printCode(os);
+				os << "] = ";
+				break;
+			case Type::Literal:
+				os << m_fieldName << " = ";
+				break;
+			case Type::NoIndex:
+				break;
+		}
+
+		m_valueExpr->printCode(os);
 	}
 
 	Type fieldType() const { return m_type; }
@@ -775,6 +835,22 @@ public:
 		std::cout << "Table:\n";
 		for (const auto &p : m_fields)
 			p->print(indent + 1);
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		if (m_fields.empty()) {
+			os << "{}";
+			return;
+		}
+
+		os << "{ ";
+		m_fields[0]->printCode(os);
+		for (size_t i = 1; i < m_fields.size(); ++i) {
+			os << ", ";
+			m_fields[i]->printCode(os);
+		}
+		os << " }";
 	}
 
 	const std::vector <std::unique_ptr <Field> > & fields() const { return m_fields; }
@@ -958,7 +1034,7 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
-		os << "<b>break</b>\n";
+		os << "<b>break</b>";
 	}
 
 	Node::Type type() const override { return Node::Type::Break; }
@@ -983,7 +1059,7 @@ public:
 
 	Node::Type type() const override { return Node::Type::Return; }
 
-	bool empty() const { return m_exprList.get() != nullptr; }
+	bool empty() const { return m_exprList.get() == nullptr; }
 	const ExprList & exprList() const { return *m_exprList; }
 
 	std::unique_ptr <Node> clone() const override
@@ -1078,6 +1154,19 @@ public:
 			do_indent(indent + 1);
 			std::cout << "<empty>\n";
 		}
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		if (m_local)
+			os << "<b>local</b> ";
+		os << "<b>function</b> ";
+
+		if (m_name.empty())
+			os << "<i>&lt;anonymous&gt;</i>";
+		else
+			os << fullName();
+		params().printCode(os);
 	}
 
 	const ParamList & params() const

@@ -47,12 +47,13 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 
 		switch (insn->type()) {
 			case Node::Type::Break:
-				ctx.breakBlocks.push_back(current);
 				current->exitType = BasicBlock::ExitType::Break;
-				[[fallthrough]]
+				ctx.breakBlocks.push_back(current);
+				break;
 			case Node::Type::Assignment:
 			case Node::Type::FunctionCall:
 			case Node::Type::Function:
+			case Node::Type::MethodCall:
 				current->insn.push_back(insn.get());
 				break;
 			case Node::Type::Chunk: {
@@ -344,12 +345,27 @@ void ControlFlowGraph::graphvizDump(const char *filename)
 				file << "</td></tr>";
 			}
 
-			if (bb->exitType == BasicBlock::ExitType::Conditional) {
-				if (!bb->insn.empty())
-					file << "<hr/>";
-				file << "<tr><td><b>if</b> ";
-				bb->condition->printCode(file);
-				file << "</td></tr>";
+			switch (bb->exitType) {
+				case BasicBlock::ExitType::Conditional: {
+					if (!bb->insn.empty())
+						file << "<hr/>";
+					file << "<tr><td align=\"left\"><b>if</b> ";
+					bb->condition->printCode(file);
+					file << "</td></tr>";
+					break;
+				}
+				case BasicBlock::ExitType::Break: {
+					file << "<tr><td align=\"left\"><b>break</b></td></tr>";
+					break;
+				}
+				case BasicBlock::ExitType::Return: {
+					file << "<tr><td align=\"left\"><b>return</b> ";
+					bb->returnExprList->printCode(file);
+					file << "</td></tr>";
+					break;
+				}
+				default:
+					break;
 			}
 
 			file << "</table>>";
