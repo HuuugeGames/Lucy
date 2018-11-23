@@ -1,3 +1,4 @@
+#include <functional>
 #include <fstream>
 #include <string_view>
 
@@ -14,6 +15,9 @@ ControlFlowGraph::ControlFlowGraph(const Chunk &chunk)
 {
 	CFGContext ctx;
 	std::tie(m_entry, m_exit) = processChunk(ctx, chunk);
+
+	calcPredecessors();
+	prune();
 }
 
 std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext &ctx, const Chunk &chunk)
@@ -21,6 +25,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 	auto makeBB = [this]
 	{
 		m_blocks.emplace_back(std::make_unique<BasicBlock>(m_blockSerial.next()));
+		m_blocks.back()->phase = m_walkPhase;
 		return m_blocks.back().get();
 	};
 
@@ -186,6 +191,80 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 	return {entry, current};
 }
 
+void ControlFlowGraph::calcPredecessors()
+{
+	++m_walkPhase;
+
+	std::function <void (BasicBlock *)> doCalcPredecessors = [this, &doCalcPredecessors](BasicBlock *block)
+	{
+		if (block->phase == m_walkPhase)
+			return;
+		block->phase = m_walkPhase;
+
+		for (unsigned i = 0; i < 2; ++i) {
+			if (block->nextBlock[i]) {
+				block->nextBlock[i]->predecessors.push_back(block);
+				doCalcPredecessors(block->nextBlock[i]);
+			}
+		}
+	};
+
+	doCalcPredecessors(m_entry);
+}
+
+void ControlFlowGraph::prune()
+{
+	++m_walkPhase;
+
+	std::function <void (BasicBlock *)> doPrune = [this, &doPrune](BasicBlock *block)
+	{
+		if (!block)
+			return;
+
+		if (block->phase == m_walkPhase)
+			return;
+		block->phase = m_walkPhase;
+
+		for (unsigned int i = 0; i < 2; ++i) {
+			BasicBlock *next = block->nextBlock[i];
+			while (next && next->isEmpty() && next != m_exit) {
+				assert(!next->nextBlock[1]);
+
+				BasicBlock *subNext = next->nextBlock[0];
+
+				for (auto p : next->predecessors) {
+					for (unsigned i = 0; i < 2; ++i) {
+						if (p->nextBlock[i] == next)
+							p->nextBlock[i] = subNext;
+					}
+				}
+
+				if (subNext) {
+					subNext->removePredecessor(next);
+					std::copy(next->predecessors.begin(), next->predecessors.end(), std::back_inserter(subNext->predecessors));
+				}
+				next->nextBlock[0] = nullptr;
+				next->predecessors.clear();
+				next = subNext;
+			}
+
+			doPrune(block->nextBlock[i]);
+		}
+	};
+
+	doPrune(m_entry);
+
+	size_t idx = 0;
+	while (idx < m_blocks.size()) {
+		if (m_blocks[idx].get() != m_entry && m_blocks[idx].get() != m_exit && m_blocks[idx]->isEmpty()) {
+			m_blocks[idx] = std::move(m_blocks.back());
+			m_blocks.pop_back();
+		} else {
+			++idx;
+		}
+	}
+}
+
 const Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const ForEach &forEach)
 {
 	const char IteratorFn[] = "__f";
@@ -290,6 +369,10 @@ void ControlFlowGraph::graphvizDump(const char *filename)
 					file << '\t' << bb->label << " -> " << b->label << ";\n";
 			}
 		}
+
+		for (auto prec : bb->predecessors)
+			file << '\t' << bb->label << " -> " << prec->label << " [color=\"blue\",style=\"dashed\"];\n";
+
 		file << '\n';
 
 	}

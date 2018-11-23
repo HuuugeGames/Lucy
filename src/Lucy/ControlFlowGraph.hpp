@@ -23,10 +23,15 @@ public:
 
 private:
 	std::pair <BasicBlock *, BasicBlock *> processChunk(CFGContext &ctx, const Chunk &chunk);
+
+	void calcPredecessors();
+	void prune();
+
 	const Chunk & rewrite(CFGContext &ctx, const ForEach &forEach);
 
 	Serial m_blockSerial;
 	std::vector <std::unique_ptr <BasicBlock> > m_blocks;
 	std::vector <std::unique_ptr <const Node> > m_additionalNodes;
 	BasicBlock *m_entry, *m_exit;
+	unsigned m_walkPhase = 0;
 };
