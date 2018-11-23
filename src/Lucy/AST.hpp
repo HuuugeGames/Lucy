@@ -958,7 +958,7 @@ public:
 
 	Node::Type type() const override { return Node::Type::Return; }
 
-	bool empty() const { return m_exprList.get() != nullptr; }
+	bool empty() const { return m_exprList.get() == nullptr; }
 	const ExprList & exprList() const { return *m_exprList; }
 
 	std::unique_ptr <Node> clone() const override
