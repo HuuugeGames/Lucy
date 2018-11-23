@@ -50,9 +50,14 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 				current->exitType = BasicBlock::ExitType::Break;
 				ctx.breakBlocks.push_back(current);
 				break;
+			case Node::Type::Function: {
+				const Function *fnNode = static_cast<const Function *>(insn.get());
+				m_subgraphs.emplace_back(new ControlFlowGraph{fnNode->chunk()});
+				current->insn.push_back(insn.get());
+				break;
+			}
 			case Node::Type::Assignment:
 			case Node::Type::FunctionCall:
-			case Node::Type::Function:
 			case Node::Type::MethodCall:
 				current->insn.push_back(insn.get());
 				break;
@@ -326,6 +331,73 @@ const Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const ForEach &forEach)
 	return *result;
 }
 
+void ControlFlowGraph::graphvizDump(std::ostream &os)
+{
+	const std::string CFGPrefix = "CFG_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + '_';
+	auto unique_label = [&CFGPrefix](auto &&block) -> std::string
+	{
+		return CFGPrefix + block->label;
+	};
+
+	for (const auto &bb : m_blocks) {
+		os << '\t' << unique_label(bb) << " [shape=box";
+		if (!bb->insn.empty() || bb->exitType != BasicBlock::ExitType::Fallthrough) {
+			os << ",label=<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\"><tr><td align=\"left\">//" << bb->label << "</td></tr><hr/>";
+			for (const auto &i : bb->insn) {
+				os << "<tr><td align=\"left\">";
+				i->printCode(os);
+				os << "</td></tr>";
+			}
+
+			switch (bb->exitType) {
+				case BasicBlock::ExitType::Conditional: {
+					if (!bb->insn.empty())
+						os << "<hr/>";
+					os << "<tr><td align=\"left\"><b>if</b> ";
+					bb->condition->printCode(os);
+					os << "</td></tr>";
+					break;
+				}
+				case BasicBlock::ExitType::Break: {
+					os << "<tr><td align=\"left\"><b>break</b></td></tr>";
+					break;
+				}
+				case BasicBlock::ExitType::Return: {
+					os << "<tr><td align=\"left\"><b>return</b> ";
+					if (bb->returnExprList)
+						bb->returnExprList->printCode(os);
+					os << "</td></tr>";
+					break;
+				}
+				default:
+					break;
+			}
+
+			os << "</table>>";
+		} else {
+			os << ",color=red";
+		}
+		os << "];\n";
+
+		if (bb->exitType == BasicBlock::ExitType::Conditional) {
+			auto [trueBlock, falseBlock] = std::make_tuple(bb->nextBlock[0], bb->nextBlock[1]);
+			os << '\t' << unique_label(bb) << " -> " << unique_label(trueBlock) << " [label=\"true\",labelangle=45];\n";
+			os << '\t' << unique_label(bb) << " -> " << unique_label(falseBlock) << " [label=\"false\",labeldistance=2.0];\n";
+		} else {
+			assert(!bb->nextBlock[1]);
+			for (unsigned i = 0; i < 2; ++i) {
+				if (auto b = bb->nextBlock[i]; b)
+					os << '\t' << unique_label(bb) << " -> " << unique_label(b) << ";\n";
+			}
+		}
+
+		for (auto prec : bb->predecessors)
+			os << '\t' << unique_label(bb) << " -> " << unique_label(prec) << " [color=\"blue\",style=\"dashed\"];\n";
+
+		os << '\n';
+	}
+}
+
 void ControlFlowGraph::graphvizDump(const char *filename)
 {
 	std::ofstream file{filename};
@@ -334,63 +406,9 @@ void ControlFlowGraph::graphvizDump(const char *filename)
 	file << "\tnode [fontname=\"Monospace\"];\n"
 		"\tedge [fontname=\"Monospace\"];\n\n";
 
-	for (const auto &bb : m_blocks) {
-		file << '\t';
-		file << bb->label << " [shape=box";
-		if (!bb->insn.empty() || bb->exitType != BasicBlock::ExitType::Fallthrough) {
-			file << ",label=<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\"><tr><td align=\"left\">//" << bb->label << "</td></tr><hr/>";
-			for (const auto &i : bb->insn) {
-				file << "<tr><td align=\"left\">";
-				i->printCode(file);
-				file << "</td></tr>";
-			}
+	graphvizDump(file);
+	for (const auto &subgraph : m_subgraphs)
+		subgraph->graphvizDump(file);
 
-			switch (bb->exitType) {
-				case BasicBlock::ExitType::Conditional: {
-					if (!bb->insn.empty())
-						file << "<hr/>";
-					file << "<tr><td align=\"left\"><b>if</b> ";
-					bb->condition->printCode(file);
-					file << "</td></tr>";
-					break;
-				}
-				case BasicBlock::ExitType::Break: {
-					file << "<tr><td align=\"left\"><b>break</b></td></tr>";
-					break;
-				}
-				case BasicBlock::ExitType::Return: {
-					file << "<tr><td align=\"left\"><b>return</b> ";
-					bb->returnExprList->printCode(file);
-					file << "</td></tr>";
-					break;
-				}
-				default:
-					break;
-			}
-
-			file << "</table>>";
-		} else {
-			file << ",color=red";
-		}
-		file << "];\n";
-
-		if (bb->exitType == BasicBlock::ExitType::Conditional) {
-			auto [trueBlock, falseBlock] = std::make_tuple(bb->nextBlock[0], bb->nextBlock[1]);
-			file << '\t' << bb->label << " -> " << trueBlock->label << " [label=\"true\",labelangle=45];\n";
-			file << '\t' << bb->label << " -> " << falseBlock->label << " [label=\"false\",labeldistance=2.0];\n";
-		} else {
-			assert(!bb->nextBlock[1]);
-			for (unsigned i = 0; i < 2; ++i) {
-				if (auto b = bb->nextBlock[i]; b)
-					file << '\t' << bb->label << " -> " << b->label << ";\n";
-			}
-		}
-
-		for (auto prec : bb->predecessors)
-			file << '\t' << bb->label << " -> " << prec->label << " [color=\"blue\",style=\"dashed\"];\n";
-
-		file << '\n';
-
-	}
 	file << "}\n";
 }

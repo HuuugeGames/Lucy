@@ -564,7 +564,14 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
-		os << m_value;
+		for (char c : m_value) {
+			switch (c) {
+				case '<': os << "&lt;"; break;
+				case '>': os << "&gt;"; break;
+				case '&': os << "&amp;"; break;
+				default: os << c;
+			}
+		}
 	}
 
 	ValueType valueType() const override { return ValueType::String; }

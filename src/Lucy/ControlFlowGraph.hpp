@@ -22,6 +22,7 @@ public:
 	void graphvizDump(const char *filename);
 
 private:
+	void graphvizDump(std::ostream &os);
 	std::pair <BasicBlock *, BasicBlock *> processChunk(CFGContext &ctx, const Chunk &chunk);
 
 	void calcPredecessors();
@@ -34,4 +35,6 @@ private:
 	std::vector <std::unique_ptr <const Node> > m_additionalNodes;
 	BasicBlock *m_entry, *m_exit;
 	unsigned m_walkPhase = 0;
+
+	std::vector <std::unique_ptr <ControlFlowGraph> > m_subgraphs;
 };

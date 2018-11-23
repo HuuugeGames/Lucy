@@ -25,7 +25,22 @@ const std::vector <std::unique_ptr <Chunk> > & Driver::chunks() const
 int Driver::parse()
 {
 	m_scanner.switch_streams(&m_inputStream);
-	return m_parser.parse();
+	if (m_parser.parse() != 0)
+		return 1;
+
+	size_t idx = 0;
+	while (idx < m_chunks.size()) {
+		if (m_chunks[idx].get() == nullptr) {
+			m_chunks[idx] = std::move(m_chunks.back());
+			m_chunks.pop_back();
+		} else {
+			++idx;
+		}
+	}
+
+	if (m_chunks.empty())
+		return 2;
+	return 0;
 }
 
 yy::location Driver::location(const char *s)
