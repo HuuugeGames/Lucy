@@ -393,6 +393,9 @@ void ControlFlowGraph::graphvizDump(std::ostream &os)
 
 		os << '\n';
 	}
+
+	for (const auto &subgraph : m_subgraphs)
+		subgraph->graphvizDump(os);
 }
 
 void ControlFlowGraph::graphvizDump(const char *filename)
@@ -404,8 +407,6 @@ void ControlFlowGraph::graphvizDump(const char *filename)
 		"\tedge [fontname=\"Monospace\"];\n\n";
 
 	graphvizDump(file);
-	for (const auto &subgraph : m_subgraphs)
-		subgraph->graphvizDump(file);
 
 	file << "}\n";
 }
