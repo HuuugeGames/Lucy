@@ -391,9 +391,6 @@ void ControlFlowGraph::graphvizDump(std::ostream &os)
 			}
 		}
 
-		for (auto prec : bb->predecessors)
-			os << '\t' << unique_label(bb) << " -> " << unique_label(prec) << " [color=\"blue\",style=\"dashed\"];\n";
-
 		os << '\n';
 	}
 }
