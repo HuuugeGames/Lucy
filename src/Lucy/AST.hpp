@@ -15,6 +15,7 @@ public:
 	enum class Type {
 		Chunk,
 		ExprList,
+		NestedExpr,
 		VarList,
 		ParamList,
 		Ellipsis,
@@ -228,6 +229,40 @@ private:
 	}
 
 	std::vector <std::unique_ptr <Node> > m_exprs;
+};
+
+class NestedExpr : public Node {
+public:
+	NestedExpr(Node *expr) : m_expr{expr} {}
+
+	void print(int indent = 0) const override
+	{
+		do_indent(indent);
+		std::cout << "Subexpression:\n";
+		m_expr->print(indent + 1);
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		os << "( ";
+		m_expr->printCode(os);
+		os << " )";
+	}
+
+	Node::Type type() const override { return Type::NestedExpr; }
+
+	std::unique_ptr <Node> clone() const override
+	{
+		return std::unique_ptr <Node>{new NestedExpr{*this}};
+	}
+
+private:
+	NestedExpr(const NestedExpr &other)
+		: m_expr{other.m_expr->clone().release()}
+	{
+	}
+
+	std::unique_ptr <Node> m_expr;
 };
 
 class LValue : public Node {

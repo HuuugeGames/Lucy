@@ -127,7 +127,7 @@ var {
 	$$ = $function_call;
 }
 | LPAREN expr RPAREN {
-	$$ = $expr;
+	$$ = new NestedExpr{$expr};
 }
 ;
 
