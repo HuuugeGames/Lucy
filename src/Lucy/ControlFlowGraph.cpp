@@ -14,13 +14,13 @@ struct CFGContext {
 ControlFlowGraph::ControlFlowGraph(const Chunk &chunk)
 {
 	CFGContext ctx;
-	std::tie(m_entry, m_exit) = processChunk(ctx, chunk);
+	std::tie(m_entry, m_exit) = process(ctx, chunk);
 
 	calcPredecessors();
 	prune();
 }
 
-std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext &ctx, const Chunk &chunk)
+std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx, const Chunk &chunk)
 {
 	auto makeBB = [this]
 	{
@@ -52,18 +52,26 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 				break;
 			case Node::Type::Function: {
 				const Function *fnNode = static_cast<const Function *>(insn.get());
-				m_subgraphs.emplace_back(new ControlFlowGraph{fnNode->chunk()});
+				process(ctx, *fnNode);
 				current->insn.push_back(insn.get());
 				break;
 			}
-			case Node::Type::Assignment:
-			case Node::Type::FunctionCall:
-			case Node::Type::MethodCall:
+			case Node::Type::Assignment: {
+				const Assignment *assignmentNode = static_cast<const Assignment *>(insn.get());
+				process(ctx, *assignmentNode);
 				current->insn.push_back(insn.get());
 				break;
+			}
+			case Node::Type::FunctionCall:
+			case Node::Type::MethodCall: {
+				const FunctionCall *fnCallNode = static_cast<const FunctionCall *>(insn.get());
+				process(ctx, *fnCallNode);
+				current->insn.push_back(insn.get());
+				break;
+			}
 			case Node::Type::Chunk: {
 				const Chunk *subChunk = static_cast<const Chunk *>(insn.get());
-				auto [entry, exit] = processChunk(ctx, *subChunk);
+				auto [entry, exit] = process(ctx, *subChunk);
 				current->nextBlock[0] = entry;
 				current = makeBB();
 				exit->nextBlock[0] = current;
@@ -73,10 +81,12 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 				const Return *returnNode = static_cast<const Return *>(insn.get());
 				current->exitType = BasicBlock::ExitType::Return;
 
-				if (returnNode->empty())
-					current->returnExprList = nullptr;
-				else
+				if (!returnNode->empty()) {
 					current->returnExprList = &returnNode->exprList();
+					process(ctx, returnNode->exprList());
+				} else {
+					current->returnExprList = nullptr;
+				}
 
 				break;
 			}
@@ -91,7 +101,8 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 					current->exitType = BasicBlock::ExitType::Conditional;
 					current->condition = cond[i].get();
 
-					auto [entry, exit] = processChunk(ctx, *chunks[i]);
+					process(ctx, *cond[i]);
+					auto [entry, exit] = process(ctx, *chunks[i]);
 					exits.emplace_back(exit);
 
 					previous = current;
@@ -105,7 +116,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 
 				current = makeBB();
 				if (ifNode->hasElse()) {
-					auto [entry, exit] = processChunk(ctx, ifNode->elseNode());
+					auto [entry, exit] = process(ctx, ifNode->elseNode());
 					exits.emplace_back(exit);
 					previous->nextBlock[1] = entry;
 				} else {
@@ -118,6 +129,8 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 			}
 			case Node::Type::While: {
 				const While *whileNode = static_cast<const While *>(insn.get());
+				process(ctx, whileNode->condition());
+
 				auto previous = current;
 				current = makeBB();
 				current->exitType = BasicBlock::ExitType::Conditional;
@@ -125,7 +138,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 				previous->nextBlock[0] = current;
 				previous = current;
 
-				auto [entry, exit] = processChunk(ctx, whileNode->chunk());
+				auto [entry, exit] = process(ctx, whileNode->chunk());
 				current = makeBB();
 
 				previous->nextBlock[0] = entry;
@@ -136,7 +149,9 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 			}
 			case Node::Type::Repeat: {
 				const Repeat *repeatNode = static_cast<const Repeat *>(insn.get());
-				auto [entry, exit] = processChunk(ctx, repeatNode->chunk());
+				process(ctx, repeatNode->condition());
+
+				auto [entry, exit] = process(ctx, repeatNode->chunk());
 				current->nextBlock[0] = entry;
 
 				current = makeBB();
@@ -166,7 +181,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 				m_additionalNodes.emplace_back(std::move(condition));
 
 				previous = current;
-				auto [entry, exit] = processChunk(ctx, forNode->chunk());
+				auto [entry, exit] = process(ctx, forNode->chunk());
 				previous->nextBlock[0] = entry;
 				exit->nextBlock[0] = previous;
 
@@ -181,7 +196,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 			}
 			case Node::Type::ForEach: {
 				const ForEach *forEachNode = static_cast<const ForEach *>(insn.get());
-				auto [entry, exit] = processChunk(ctx, rewrite(ctx, *forEachNode));
+				auto [entry, exit] = process(ctx, rewrite(ctx, *forEachNode));
 				current->nextBlock[0] = entry;
 				current = makeBB();
 				exit->nextBlock[0] = current;
@@ -195,6 +210,95 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::processChunk(CFGContext
 	}
 
 	return {entry, current};
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const Assignment &assignment)
+{
+	process(ctx, assignment.varList());
+	process(ctx, assignment.exprList());
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const ExprList &exprList)
+{
+	for (const auto &e : exprList.exprs())
+		process(ctx, *e);
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const Field &field)
+{
+	if (field.fieldType() == Field::Type::Brackets)
+		process(ctx, field.keyExpr());
+	process(ctx, field.valueExpr());
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const Function &fnNode)
+{
+	m_subgraphs.emplace_back(new ControlFlowGraph{fnNode.chunk()});
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const FunctionCall &fnCallNode)
+{
+	process(ctx, fnCallNode.functionExpr());
+	process(ctx, fnCallNode.args());
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const LValue &lv)
+{
+	if (lv.lvalueType() != LValue::Type::Name)
+		process(ctx, *lv.tableExpr());
+
+	if (lv.lvalueType() == LValue::Type::Bracket)
+		process(ctx, *lv.keyExpr());
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const Node &node)
+{
+	if (node.isValue())
+		return;
+
+	switch (node.type()) {
+		case Node::Type::Function:
+			process(ctx, static_cast<const Function &>(node));
+			break;
+		case Node::Type::FunctionCall:
+		case Node::Type::MethodCall:
+			process(ctx, static_cast<const FunctionCall &>(node));
+			break;
+		case Node::Type::TableCtor:
+			process(ctx, static_cast<const TableCtor &>(node));
+			break;
+		case Node::Type::NestedExpr:
+			process(ctx, static_cast<const NestedExpr &>(node).expr());
+			break;
+		case Node::Type::LValue:
+			process(ctx, static_cast<const LValue &>(node));
+			break;
+		case Node::Type::BinOp: {
+			const BinOp &boNode = static_cast<const BinOp &>(node);
+			process(ctx, boNode.left());
+			process(ctx, boNode.right());
+			break;
+		}
+		case Node::Type::UnOp: {
+			process(ctx, static_cast<const UnOp &>(node).operand());
+			break;
+		}
+		default:
+			std::cerr << "Unhandled node type: " << toUnderlying(node.type()) << '\n';
+			abort();
+	}
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const TableCtor &table)
+{
+	for (const auto &f : table.fields())
+		process(ctx, *f);
+}
+
+void ControlFlowGraph::process(CFGContext &ctx, const VarList &varList)
+{
+	for (const auto &v : varList.vars())
+		process(ctx, *v);
 }
 
 void ControlFlowGraph::calcPredecessors()

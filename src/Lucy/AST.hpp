@@ -235,10 +235,12 @@ class NestedExpr : public Node {
 public:
 	NestedExpr(Node *expr) : m_expr{expr} {}
 
+	const Node & expr() const { return *m_expr; }
+
 	void print(int indent = 0) const override
 	{
 		do_indent(indent);
-		std::cout << "Subexpression:\n";
+		std::cout << "Nested expression:\n";
 		m_expr->print(indent + 1);
 	}
 
@@ -831,8 +833,8 @@ public:
 	Node::Type type() const override { return Node::Type::Field; }
 
 	const std::string & fieldName() const { return m_fieldName; }
-	const Node * keyExpr() const { return m_keyExpr.get(); }
-	const Node * valueExpr() const { return m_valueExpr.get(); }
+	const Node & keyExpr() const { return *m_keyExpr; }
+	const Node & valueExpr() const { return *m_valueExpr; }
 
 	std::unique_ptr <Node> clone() const override
 	{

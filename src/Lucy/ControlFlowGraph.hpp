@@ -7,9 +7,17 @@
 #include "Serial.hpp"
 
 class CFGContext;
+class Assignment;
 class Chunk;
+class ExprList;
+class Field;
+class Function;
+class FunctionCall;
 class ForEach;
+class LValue;
 class Node;
+class TableCtor;
+class VarList;
 
 class ControlFlowGraph {
 public:
@@ -22,11 +30,20 @@ public:
 	void graphvizDump(const char *filename);
 
 private:
-	void graphvizDump(std::ostream &os);
-	std::pair <BasicBlock *, BasicBlock *> processChunk(CFGContext &ctx, const Chunk &chunk);
+	std::pair <BasicBlock *, BasicBlock *> process(CFGContext &ctx, const Chunk &chunk);
+	void process(CFGContext &ctx, const Assignment &assignment);
+	void process(CFGContext &ctx, const ExprList &exprList);
+	void process(CFGContext &ctx, const Field &field);
+	void process(CFGContext &ctx, const Function &fnNode);
+	void process(CFGContext &ctx, const FunctionCall &fnCallNode);
+	void process(CFGContext &ctx, const LValue &lv);
+	void process(CFGContext &ctx, const Node &node);
+	void process(CFGContext &ctx, const TableCtor &table);
+	void process(CFGContext &ctx, const VarList &varList);
 
 	void calcPredecessors();
 	void prune();
+	void graphvizDump(std::ostream &os);
 
 	const Chunk & rewrite(CFGContext &ctx, const ForEach &forEach);
 
