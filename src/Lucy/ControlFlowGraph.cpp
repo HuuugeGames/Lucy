@@ -413,7 +413,7 @@ const Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const ForEach &forEach)
 	loopAssignment->setLocal(true);
 	loopChunk->append(loopAssignment);
 
-	loopChunk->append(new Assignment{ControlVar, forEach.variables().names()[0]});
+	loopChunk->append(new Assignment{ControlVar, forEach.variables().names()[0].first});
 
 	If *endLoopCondition = new If
 	{
