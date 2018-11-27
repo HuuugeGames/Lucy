@@ -253,7 +253,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const LValue &lv)
 
 void ControlFlowGraph::process(CFGContext &ctx, const Node &node)
 {
-	if (node.isValue())
+	if (node.isValue() || node.type() == Node::Type::Ellipsis)
 		return;
 
 	switch (node.type()) {

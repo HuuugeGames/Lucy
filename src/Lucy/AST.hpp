@@ -78,6 +78,8 @@ protected:
 
 class Chunk : public Node {
 public:
+	static const Chunk Empty;
+
 	Chunk() = default;
 
 	Chunk(std::initializer_list <Node *> statements)
@@ -117,6 +119,8 @@ private:
 
 class ParamList : public Node {
 public:
+	static const ParamList Empty;
+
 	ParamList() : m_ellipsis{false} {}
 
 	void append(const std::string &name) { m_names.push_back(name); }
@@ -1113,7 +1117,7 @@ public:
 
 private:
 	Return(const Return &other)
-		: m_exprList{static_cast<ExprList *>(other.m_exprList->clone().release())}
+		: m_exprList{other.m_exprList ? static_cast<ExprList *>(other.m_exprList->clone().release()) : nullptr}
 	{
 	}
 
@@ -1126,7 +1130,12 @@ class Function : public Node {
 public:
 	Function(ParamList *params, Chunk *chunk) : m_params{params}, m_chunk{chunk}, m_local{false} {}
 
-	const Chunk & chunk() const { return *m_chunk; }
+	const Chunk & chunk() const
+	{
+		if (!m_chunk)
+			return Chunk::Empty;
+		return *m_chunk;
+	}
 
 	bool isLocal() const { return m_local; }
 	void setLocal() { m_local = true; }
@@ -1215,10 +1224,8 @@ public:
 
 	const ParamList & params() const
 	{
-		if (!m_params) {
-			static const ParamList Empty;
-			return Empty;
-		}
+		if (!m_params)
+			return ParamList::Empty;
 		return *m_params;
 	}
 
@@ -1233,8 +1240,8 @@ private:
 	Function(const Function &other)
 		: m_name{other.m_name},
 		  m_method{other.m_method},
-		  m_params{static_cast<ParamList *>(other.m_params->clone().release())},
-		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())},
+		  m_params{other.m_params ? static_cast<ParamList *>(other.m_params->clone().release()) : nullptr},
+		  m_chunk{other.m_chunk ? static_cast<Chunk *>(other.m_chunk->clone().release()) : nullptr},
 		  m_local{other.m_local}
 	{
 	}
@@ -1251,7 +1258,7 @@ public:
 	If(Node *condition, Chunk *chunk)
 	{
 		m_conditions.emplace_back(condition);
-		m_chunks.emplace_back(chunk);
+		appendChunk(chunk);
 	}
 
 	bool hasElse() const { return m_else.get() != nullptr; }
@@ -1264,7 +1271,7 @@ public:
 	void addElseIf(Node *condition, Chunk *chunk)
 	{
 		m_conditions.emplace_back(condition);
-		m_chunks.emplace_back(chunk);
+		appendChunk(chunk);
 	}
 
 	void print(int indent = 0) const override
@@ -1296,6 +1303,14 @@ public:
 	}
 
 private:
+	void appendChunk(Chunk *chunk)
+	{
+		if (chunk)
+			m_chunks.emplace_back(chunk);
+		else
+			m_chunks.emplace_back(static_cast<Chunk *>(Chunk::Empty.clone().release()));
+	}
+
 	If(const If &other)
 	{
 		for (const auto &n : other.m_conditions)

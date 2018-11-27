@@ -6,6 +6,7 @@ add_executable(${PROJECT_NAME}
 	${BISON_Parser_OUTPUTS}
 	${FLEX_Lexer_OUTPUTS}
 
+	AST.cpp
 	BasicBlock.cpp
 	ControlFlowGraph.cpp
 	Driver.cpp
