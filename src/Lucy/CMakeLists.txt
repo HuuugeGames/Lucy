@@ -8,6 +8,7 @@ add_executable(${PROJECT_NAME}
 
 	AST.cpp
 	BasicBlock.cpp
+	Config.cpp
 	ControlFlowGraph.cpp
 	Driver.cpp
 	Preprocessor.cpp

@@ -28,6 +28,7 @@ public:
 	~ControlFlowGraph() = default;
 
 	void graphvizDump(const char *filename);
+	void graphvizDump(const std::string &filename) { graphvizDump(filename.c_str()); }
 
 private:
 	std::pair <BasicBlock *, BasicBlock *> process(CFGContext &ctx, const Chunk &chunk);
