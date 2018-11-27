@@ -1,4 +1,6 @@
 %glr-parser
+%expect 130
+%expect-rr 1
 
 %code requires
 {
