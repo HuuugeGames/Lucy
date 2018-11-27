@@ -15,6 +15,7 @@ public:
 	enum class Type {
 		Chunk,
 		ExprList,
+		NestedExpr,
 		VarList,
 		ParamList,
 		Ellipsis,
@@ -77,7 +78,15 @@ protected:
 
 class Chunk : public Node {
 public:
+	static const Chunk Empty;
+
 	Chunk() = default;
+
+	Chunk(std::initializer_list <Node *> statements)
+	{
+		for (auto s : statements)
+			append(s);
+	}
 
 	void append(Node *n) { m_children.emplace_back(n); }
 
@@ -110,6 +119,8 @@ private:
 
 class ParamList : public Node {
 public:
+	static const ParamList Empty;
+
 	ParamList() : m_ellipsis{false} {}
 
 	void append(const std::string &name) { m_names.push_back(name); }
@@ -131,6 +142,23 @@ public:
 		if (m_ellipsis)
 			std::cout << "...";
 		std::cout << '\n';
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		if (m_names.empty()) {
+			if (m_ellipsis)
+				os << "( ... )";
+			else
+				os << "()";
+
+			return;
+		}
+
+		os << "( " << m_names[0];
+		for (size_t i = 1; i < m_names.size(); ++i)
+			os << ", " << m_names[i];
+		os << " )";
 	}
 
 	const std::vector <std::string> & names() const { return m_names; }
@@ -156,7 +184,15 @@ class ExprList : public Node {
 public:
 	ExprList() = default;
 
+	ExprList(std::initializer_list <Node *> exprs)
+	{
+		for (auto expr : exprs)
+			append(expr);
+	}
+
 	void append(Node *n) { m_exprs.emplace_back(n); }
+
+	bool empty() const { return m_exprs.empty(); }
 
 	const std::vector <std::unique_ptr <Node> > & exprs() const { return m_exprs; }
 
@@ -172,12 +208,13 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
-		bool first = true;
-		for (const auto &expr : m_exprs) {
-			if (!first)
-				os << ", ";
-			first = false;
-			expr->printCode(os);
+		if (m_exprs.empty())
+			return;
+		m_exprs[0]->printCode(os);
+
+		for (size_t i = 1; i < m_exprs.size(); ++i) {
+			os << ", ";
+			m_exprs[i]->printCode(os);
 		}
 	}
 
@@ -196,6 +233,42 @@ private:
 	}
 
 	std::vector <std::unique_ptr <Node> > m_exprs;
+};
+
+class NestedExpr : public Node {
+public:
+	NestedExpr(Node *expr) : m_expr{expr} {}
+
+	const Node & expr() const { return *m_expr; }
+
+	void print(int indent = 0) const override
+	{
+		do_indent(indent);
+		std::cout << "Nested expression:\n";
+		m_expr->print(indent + 1);
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		os << "( ";
+		m_expr->printCode(os);
+		os << " )";
+	}
+
+	Node::Type type() const override { return Type::NestedExpr; }
+
+	std::unique_ptr <Node> clone() const override
+	{
+		return std::unique_ptr <Node>{new NestedExpr{*this}};
+	}
+
+private:
+	NestedExpr(const NestedExpr &other)
+		: m_expr{other.m_expr->clone().release()}
+	{
+	}
+
+	std::unique_ptr <Node> m_expr;
 };
 
 class LValue : public Node {
@@ -299,6 +372,12 @@ class VarList : public Node {
 public:
 	VarList() = default;
 
+	VarList(std::initializer_list <const char *> varNames)
+	{
+		for (auto varName : varNames)
+			append(new LValue{varName});
+	}
+
 	void append(LValue *lval)
 	{
 		m_vars.emplace_back(lval);
@@ -373,6 +452,11 @@ public:
 		m_exprList->append(expr);
 	}
 
+	Assignment(const std::string &dstVar, const std::string &srcVar)
+		: Assignment{dstVar, new LValue{srcVar}}
+	{
+	}
+
 	Assignment(const std::string &name, std::unique_ptr <Node> &&expr)
 		: Assignment{name, expr.release()}
 	{
@@ -418,9 +502,13 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
+		if (m_local)
+			os << "<b>local</b> ";
 		m_varList->printCode(os);
-		os << " = ";
-		m_exprList->printCode(os);
+		if (!m_exprList->empty()) {
+			os << " = ";
+			m_exprList->printCode(os);
+		}
 	}
 
 	Node::Type type() const override { return Type::Assignment; }
@@ -517,7 +605,14 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
-		os << m_value;
+		for (char c : m_value) {
+			switch (c) {
+				case '<': os << "&lt;"; break;
+				case '>': os << "&gt;"; break;
+				case '&': os << "&amp;"; break;
+				default: os << c;
+			}
+		}
 	}
 
 	ValueType valueType() const override { return ValueType::String; }
@@ -606,9 +701,14 @@ public:
 	void printCode(std::ostream &os) const override
 	{
 		m_functionExpr->printCode(os);
-		os << '(';
+		if (m_args->empty()) {
+			os << "()";
+			return;
+		}
+
+		os << "( ";
 		m_args->printCode(os);
-		os << ')';
+		os << " )";
 	}
 
 	const Node & functionExpr() const { return *m_functionExpr; }
@@ -647,6 +747,21 @@ public:
 		do_indent(indent);
 		std::cout << "Method name: " << m_methodName << '\n';
 		args().print(indent + 1);
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		functionExpr().printCode(os);
+		os << ':' << m_methodName;
+
+		if (args().empty()) {
+			os << "()";
+			return;
+		}
+
+		os << "( ";
+		args().printCode(os);
+		os << " )";
 	}
 
 	Node::Type type() const override { return Type::MethodCall; }
@@ -699,13 +814,31 @@ public:
 		m_valueExpr->print(indent + 1);
 	}
 
+	void printCode(std::ostream &os) const override
+	{
+		switch (m_type) {
+			case Type::Brackets:
+				os << '[';
+				m_keyExpr->printCode(os);
+				os << "] = ";
+				break;
+			case Type::Literal:
+				os << m_fieldName << " = ";
+				break;
+			case Type::NoIndex:
+				break;
+		}
+
+		m_valueExpr->printCode(os);
+	}
+
 	Type fieldType() const { return m_type; }
 
 	Node::Type type() const override { return Node::Type::Field; }
 
 	const std::string & fieldName() const { return m_fieldName; }
-	const Node * keyExpr() const { return m_keyExpr.get(); }
-	const Node * valueExpr() const { return m_valueExpr.get(); }
+	const Node & keyExpr() const { return *m_keyExpr; }
+	const Node & valueExpr() const { return *m_valueExpr; }
 
 	std::unique_ptr <Node> clone() const override
 	{
@@ -750,6 +883,22 @@ public:
 		std::cout << "Table:\n";
 		for (const auto &p : m_fields)
 			p->print(indent + 1);
+	}
+
+	void printCode(std::ostream &os) const override
+	{
+		if (m_fields.empty()) {
+			os << "{}";
+			return;
+		}
+
+		os << "{ ";
+		m_fields[0]->printCode(os);
+		for (size_t i = 1; i < m_fields.size(); ++i) {
+			os << ", ";
+			m_fields[i]->printCode(os);
+		}
+		os << " }";
 	}
 
 	const std::vector <std::unique_ptr <Field> > & fields() const { return m_fields; }
@@ -933,7 +1082,7 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
-		os << "break\n";
+		os << "<b>break</b>";
 	}
 
 	Node::Type type() const override { return Node::Type::Break; }
@@ -968,7 +1117,7 @@ public:
 
 private:
 	Return(const Return &other)
-		: m_exprList{static_cast<ExprList *>(other.m_exprList->clone().release())}
+		: m_exprList{other.m_exprList ? static_cast<ExprList *>(other.m_exprList->clone().release()) : nullptr}
 	{
 	}
 
@@ -981,7 +1130,12 @@ class Function : public Node {
 public:
 	Function(ParamList *params, Chunk *chunk) : m_params{params}, m_chunk{chunk}, m_local{false} {}
 
-	const Chunk & chunk() const { return *m_chunk; }
+	const Chunk & chunk() const
+	{
+		if (!m_chunk)
+			return Chunk::Empty;
+		return *m_chunk;
+	}
 
 	bool isLocal() const { return m_local; }
 	void setLocal() { m_local = true; }
@@ -1055,12 +1209,23 @@ public:
 		}
 	}
 
+	void printCode(std::ostream &os) const override
+	{
+		if (m_local)
+			os << "<b>local</b> ";
+		os << "<b>function</b> ";
+
+		if (m_name.empty())
+			os << "<i>&lt;anonymous&gt;</i>";
+		else
+			os << fullName();
+		params().printCode(os);
+	}
+
 	const ParamList & params() const
 	{
-		if (!m_params) {
-			static const ParamList Empty;
-			return Empty;
-		}
+		if (!m_params)
+			return ParamList::Empty;
 		return *m_params;
 	}
 
@@ -1075,8 +1240,8 @@ private:
 	Function(const Function &other)
 		: m_name{other.m_name},
 		  m_method{other.m_method},
-		  m_params{static_cast<ParamList *>(other.m_params->clone().release())},
-		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())},
+		  m_params{other.m_params ? static_cast<ParamList *>(other.m_params->clone().release()) : nullptr},
+		  m_chunk{other.m_chunk ? static_cast<Chunk *>(other.m_chunk->clone().release()) : nullptr},
 		  m_local{other.m_local}
 	{
 	}
@@ -1093,7 +1258,7 @@ public:
 	If(Node *condition, Chunk *chunk)
 	{
 		m_conditions.emplace_back(condition);
-		m_chunks.emplace_back(chunk);
+		appendChunk(chunk);
 	}
 
 	bool hasElse() const { return m_else.get() != nullptr; }
@@ -1106,7 +1271,7 @@ public:
 	void addElseIf(Node *condition, Chunk *chunk)
 	{
 		m_conditions.emplace_back(condition);
-		m_chunks.emplace_back(chunk);
+		appendChunk(chunk);
 	}
 
 	void print(int indent = 0) const override
@@ -1138,6 +1303,14 @@ public:
 	}
 
 private:
+	void appendChunk(Chunk *chunk)
+	{
+		if (chunk)
+			m_chunks.emplace_back(chunk);
+		else
+			m_chunks.emplace_back(static_cast<Chunk *>(Chunk::Empty.clone().release()));
+	}
+
 	If(const If &other)
 	{
 		for (const auto &n : other.m_conditions)
@@ -1336,14 +1509,14 @@ private:
 
 class ForEach : public Node {
 public:
-	ForEach(ParamList *iterators, ExprList *exprs, Chunk *chunk)
-		: m_iterators{iterators}, m_exprs{exprs}, m_chunk{chunk} {}
+	ForEach(ParamList *variables, ExprList *exprs, Chunk *chunk)
+		: m_variables{variables}, m_exprs{exprs}, m_chunk{chunk} {}
 
 	void print(int indent = 0) const override
 	{
 		do_indent(indent);
 		std::cout << "for_each:\n";
-		m_iterators->print(indent + 1);
+		m_variables->print(indent + 1);
 
 		do_indent(indent);
 		std::cout << "in:\n";
@@ -1356,20 +1529,38 @@ public:
 
 	Node::Type type() const override { return Node::Type::ForEach; }
 
+	const ParamList & variables() const { return *m_variables; }
+	const ExprList & exprList() const { return *m_exprs; }
+
 	std::unique_ptr <Node> clone() const override
 	{
 		return std::unique_ptr <ForEach>{new ForEach{*this}};
 	}
 
+	std::unique_ptr <ParamList> cloneVariables() const
+	{
+		return std::unique_ptr <ParamList>{static_cast<ParamList *>(m_variables->clone().release())};
+	}
+
+	std::unique_ptr <ExprList> cloneExprList() const
+	{
+		return std::unique_ptr <ExprList>{static_cast<ExprList *>(m_exprs->clone().release())};
+	}
+
+	std::unique_ptr <Chunk> cloneChunk() const
+	{
+		return std::unique_ptr <Chunk>{static_cast<Chunk *>(m_chunk->clone().release())};
+	}
+
 private:
 	ForEach(const ForEach &other)
-		: m_iterators{static_cast<ParamList *>(other.m_iterators->clone().release())},
+		: m_variables{static_cast<ParamList *>(other.m_variables->clone().release())},
 		  m_exprs{static_cast<ExprList *>(other.m_exprs->clone().release())},
 		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
 	{
 	}
 
-	std::unique_ptr <ParamList> m_iterators;
+	std::unique_ptr <ParamList> m_variables;
 	std::unique_ptr <ExprList> m_exprs;
 	std::unique_ptr <Chunk> m_chunk;
 };

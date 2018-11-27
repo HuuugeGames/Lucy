@@ -24,6 +24,7 @@ public:
 	void step();
 
 	bool setInputFile(const char *filename);
+	bool setInputFile(const std::string &filename) { return setInputFile(filename.c_str()); }
 
 private:
 	Preprocessor m_preprocessor;

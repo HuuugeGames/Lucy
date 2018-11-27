@@ -127,7 +127,7 @@ var {
 	$$ = $function_call;
 }
 | LPAREN expr RPAREN {
-	$$ = $expr;
+	$$ = new NestedExpr{$expr};
 }
 ;
 
@@ -437,7 +437,7 @@ NIL {
 		} else if (v->valueType() == ValueType::Real) {
 			$$ = new RealValue{-static_cast<const RealValue *>(v)->value()};
 		} else {
-			fprintf(stderr, "Invalid ValueType for unary minus operator\n");
+			std::cerr << "Invalid ValueType for unary minus operator\n";
 			abort();
 		}
 
