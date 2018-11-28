@@ -41,7 +41,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 	for (const auto &insn : chunk.children()) {
 		if (current->exitType != BasicBlock::ExitType::Fallthrough) {
-			std::cerr << "Dangling statements after block exit\n"; //TODO location info
+			std::cerr << insn->location() << " : dangling statements after block exit\n";
 			break;
 		}
 
@@ -413,7 +413,7 @@ const Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const ForEach &forEach)
 	loopAssignment->setLocal(true);
 	loopChunk->append(loopAssignment);
 
-	loopChunk->append(new Assignment{ControlVar, forEach.variables().names()[0]});
+	loopChunk->append(new Assignment{ControlVar, forEach.variables().names()[0].first});
 
 	If *endLoopCondition = new If
 	{

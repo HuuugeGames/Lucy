@@ -7,6 +7,7 @@
 #include <variant>
 #include <vector>
 
+#include "location.hh" //generated file
 #include "EnumHelpers.hpp"
 #include "ValueType.hpp"
 
@@ -39,7 +40,7 @@ public:
 		_last,
 	};
 
-	virtual void print(int indent = 0) const
+	virtual void print(unsigned indent = 0) const
 	{
 		do_indent(indent);
 		std::cout << "Node\n";
@@ -50,7 +51,7 @@ public:
 		os << "-- INVALID (" << static_cast<uint32_t>(type()) << ')';
 	}
 
-	Node() = default;
+	constexpr Node(const yy::location &location = yy::location{}) : m_location{location} {}
 	virtual ~Node() = default;
 	Node(Node &&) = default;
 
@@ -63,37 +64,64 @@ public:
 	virtual Type type() const = 0;
 	virtual std::unique_ptr <Node> clone() const = 0;
 
+	const yy::location & location() const
+	{
+		return m_location;
+	}
+
 protected:
-	void do_indent(int indent) const
+	void do_indent(unsigned indent) const
 	{
 		do_indent(std::cout, indent);
 	}
 
-	void do_indent(std::ostream &os, int indent) const
+	void do_indent(std::ostream &os, unsigned indent) const
 	{
-		for (int i = 0; i < indent; ++i)
+		for (unsigned i = 0; i < indent; ++i)
 			os << '\t';
 	}
+
+	void extendLocation(const yy::location &location)
+	{
+		if (m_location.begin.filename == nullptr)
+			m_location.begin.filename = location.begin.filename;
+		m_location.end = location.end;
+	}
+
+	void printLocation(unsigned indent) const
+	{
+		do_indent(indent);
+		std::cout << m_location << '\n';
+	}
+
+private:
+	yy::location m_location;
 };
 
 class Chunk : public Node {
 public:
 	static const Chunk Empty;
 
-	Chunk() = default;
+	Chunk(const yy::location &location = yy::location{}) : Node{location} {}
 
-	Chunk(std::initializer_list <Node *> statements)
+	Chunk(std::initializer_list <Node *> statements, const yy::location &location = yy::location{})
+		: Node{location}
 	{
 		for (auto s : statements)
 			append(s);
 	}
 
-	void append(Node *n) { m_children.emplace_back(n); }
+	void append(Node *n)
+	{
+		m_children.emplace_back(n);
+		extendLocation(n->location());
+	}
 
 	const std::vector <std::unique_ptr <Node> > & children() const { return m_children; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Chunk:\n";
 		for (const auto &n : m_children)
@@ -109,6 +137,7 @@ public:
 
 private:
 	Chunk(const Chunk &other)
+		: Node{other.location()}
 	{
 		for (const auto &n : other.m_children)
 			m_children.emplace_back(n->clone());
@@ -121,24 +150,36 @@ class ParamList : public Node {
 public:
 	static const ParamList Empty;
 
-	ParamList() : m_ellipsis{false} {}
+	ParamList(const yy::location &location = yy::location{}) : Node{location}, m_ellipsis{false} {}
 
-	void append(const std::string &name) { m_names.push_back(name); }
-	void append(std::string &&name) { m_names.push_back(std::move(name)); }
+	void append(const std::string &name, const yy::location &location = yy::location{})
+	{
+		m_names.emplace_back(name, location);
+		extendLocation(location);
+	}
+
+	void append(std::string &&name, const yy::location &location = yy::location{})
+	{
+		m_names.emplace_back(std::move(name), location);
+		extendLocation(location);
+	}
 
 	bool hasEllipsis() const { return m_ellipsis; }
 	void setEllipsis() { m_ellipsis = true; };
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Name list: ";
-		if (!m_names.empty())
-			std::cout << m_names.front();
-		if (m_names.size() > 1) {
-			for (auto name = m_names.cbegin() + 1; name != m_names.cend(); ++name)
-				std::cout << ", " << *name;
+		if (!m_names.empty()) {
+			std::cout << '<' << m_names[0].second << "> " << m_names[0].first;
 		}
+
+		for (size_t i = 1; i < m_names.size(); ++i) {
+			std::cout << ", <" << m_names[i].second << "> " << m_names[i].first;
+		}
+
 		if (m_ellipsis)
 			std::cout << "...";
 		std::cout << '\n';
@@ -155,13 +196,13 @@ public:
 			return;
 		}
 
-		os << "( " << m_names[0];
+		os << "( " << m_names[0].second;
 		for (size_t i = 1; i < m_names.size(); ++i)
-			os << ", " << m_names[i];
+			os << ", " << m_names[i].second;
 		os << " )";
 	}
 
-	const std::vector <std::string> & names() const { return m_names; }
+	const std::vector <std::pair <std::string, yy::location> > & names() const { return m_names; }
 
 	Node::Type type() const override { return Type::ParamList; }
 
@@ -172,32 +213,37 @@ public:
 
 private:
 	ParamList(const ParamList &other)
-		: m_names{other.m_names}, m_ellipsis{other.m_ellipsis}
+		: Node{other.location()}, m_names{other.m_names}, m_ellipsis{other.m_ellipsis}
 	{
 	}
 
-	std::vector <std::string> m_names;
+	std::vector <std::pair <std::string, yy::location> > m_names;
 	bool m_ellipsis;
 };
 
 class ExprList : public Node {
 public:
-	ExprList() = default;
+	ExprList(const yy::location &location = yy::location{}) : Node{location} {}
 
-	ExprList(std::initializer_list <Node *> exprs)
+	ExprList(std::initializer_list <Node *> exprs, const yy::location &location = yy::location{}) : Node{location}
 	{
 		for (auto expr : exprs)
 			append(expr);
 	}
 
-	void append(Node *n) { m_exprs.emplace_back(n); }
+	void append(Node *n)
+	{
+		m_exprs.emplace_back(n);
+		extendLocation(n->location());
+	}
 
 	bool empty() const { return m_exprs.empty(); }
 
 	const std::vector <std::unique_ptr <Node> > & exprs() const { return m_exprs; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Expression list: [\n";
 		for (const auto &n : m_exprs)
@@ -227,6 +273,7 @@ public:
 
 private:
 	ExprList(const ExprList &other)
+		: Node{other.location()}
 	{
 		for (const auto &n : other.m_exprs)
 			m_exprs.emplace_back(n->clone());
@@ -237,12 +284,16 @@ private:
 
 class NestedExpr : public Node {
 public:
-	NestedExpr(Node *expr) : m_expr{expr} {}
+	NestedExpr(Node *expr, const yy::location &location = yy::location{})
+		: Node{location}, m_expr{expr}
+	{
+	}
 
 	const Node & expr() const { return *m_expr; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Nested expression:\n";
 		m_expr->print(indent + 1);
@@ -264,7 +315,7 @@ public:
 
 private:
 	NestedExpr(const NestedExpr &other)
-		: m_expr{other.m_expr->clone().release()}
+		: Node{other.location()}, m_expr{other.m_expr->clone().release()}
 	{
 	}
 
@@ -279,14 +330,34 @@ public:
 		Name,
 	};
 
-	LValue(Node *tableExpr, Node *keyExpr) : m_type{Type::Bracket}, m_tableExpr{tableExpr}, m_keyExpr{keyExpr} {}
-	LValue(Node *tableExpr, const std::string &fieldName) : m_type{Type::Dot}, m_tableExpr{tableExpr}, m_name{fieldName} {}
-	LValue(Node *tableExpr, std::string &&fieldName) : m_type{Type::Dot}, m_tableExpr{tableExpr}, m_name{std::move(fieldName)} {}
-	LValue(const std::string &varName) : m_type{Type::Name}, m_name{varName} {}
-	LValue(std::string &&varName) : m_type{Type::Name}, m_name{std::move(varName)} {}
-
-	void print(int indent = 0) const override
+	LValue(Node *tableExpr, Node *keyExpr, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Bracket}, m_tableExpr{tableExpr}, m_keyExpr{keyExpr}
 	{
+	}
+
+	LValue(Node *tableExpr, const std::string &fieldName, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Dot}, m_tableExpr{tableExpr}, m_name{fieldName}
+	{
+	}
+
+	LValue(Node *tableExpr, std::string &&fieldName, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Dot}, m_tableExpr{tableExpr}, m_name{std::move(fieldName)}
+	{
+	}
+
+	LValue(const std::string &varName, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Name}, m_name{varName}
+	{
+	}
+
+	LValue(std::string &&varName, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Name}, m_name{std::move(varName)}
+	{
+	}
+
+	void print(unsigned indent = 0) const override
+	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "LValue";
 		switch (m_type) {
@@ -343,7 +414,8 @@ public:
 	}
 
 private:
-	LValue(const LValue &other) : m_type{other.m_type}
+	LValue(const LValue &other)
+		: Node{other.location()}, m_type{other.m_type}
 	{
 		switch (m_type) {
 			case Type::Bracket:
@@ -370,9 +442,9 @@ private:
 
 class VarList : public Node {
 public:
-	VarList() = default;
+	VarList(const yy::location &location = yy::location{}) : Node{location} {}
 
-	VarList(std::initializer_list <const char *> varNames)
+	VarList(std::initializer_list <const char *> varNames, const yy::location &location = yy::location{}) : Node{location}
 	{
 		for (auto varName : varNames)
 			append(new LValue{varName});
@@ -381,6 +453,7 @@ public:
 	void append(LValue *lval)
 	{
 		m_vars.emplace_back(lval);
+		extendLocation(lval->location());
 	}
 
 	const std::vector <std::unique_ptr <LValue> > & vars() const
@@ -388,8 +461,9 @@ public:
 		return m_vars;
 	}
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Variable list: [\n";
 		for (const auto &lv : m_vars)
@@ -419,6 +493,7 @@ public:
 
 private:
 	VarList(const VarList &other)
+		: Node{other.location()}
 	{
 		for (const auto &n : other.m_vars)
 			m_vars.emplace_back(static_cast<LValue *>(n->clone().release()));
@@ -429,8 +504,11 @@ private:
 
 class Ellipsis : public Node {
 public:
-	void print(int indent = 0) const override
+	constexpr Ellipsis(const yy::location &location) : Node{location} {}
+
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Ellipsis (...)\n";
 	}
@@ -439,41 +517,41 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::make_unique<Ellipsis>();
+		return std::make_unique<Ellipsis>(location());
 	}
 };
 
 class Assignment : public Node {
 public:
-	Assignment(const std::string &name, Node *expr)
-		: m_varList{new VarList{}}, m_exprList{new ExprList{}}, m_local{false}
+	Assignment(const std::string &name, Node *expr, const yy::location &location = yy::location{})
+		: Node{location}, m_varList{new VarList{}}, m_exprList{new ExprList{}}, m_local{false}
 	{
-		m_varList->append(new LValue{name});
+		m_varList->append(new LValue{name}); //TODO name location
 		m_exprList->append(expr);
 	}
 
-	Assignment(const std::string &dstVar, const std::string &srcVar)
-		: Assignment{dstVar, new LValue{srcVar}}
+	Assignment(const std::string &dstVar, const std::string &srcVar, const yy::location &location = yy::location{})
+		: Assignment{dstVar, new LValue{srcVar}, location} //TODO dstVar, srcVar location
 	{
 	}
 
-	Assignment(const std::string &name, std::unique_ptr <Node> &&expr)
-		: Assignment{name, expr.release()}
+	Assignment(const std::string &name, std::unique_ptr <Node> &&expr, const yy::location &location = yy::location{})
+		: Assignment{name, expr.release(), location} // TODO name location
 	{
 	}
 
-	Assignment(VarList *vl, ExprList *el)
-		: m_varList{vl}, m_exprList{el}, m_local{false}
+	Assignment(VarList *vl, ExprList *el, const yy::location &location = yy::location{})
+		: Node{location}, m_varList{vl}, m_exprList{el}, m_local{false}
 	{
 		if (!m_exprList)
 			m_exprList.reset(new ExprList{});
 	}
 
-	Assignment(ParamList *pl, ExprList *el)
-		: m_varList{new VarList{}}, m_exprList{el}, m_local{true}
+	Assignment(ParamList *pl, ExprList *el, const yy::location &location = yy::location{})
+		: Node{location}, m_varList{new VarList{}}, m_exprList{el}, m_local{true}
 	{
 		for (const auto &name : pl->names())
-			m_varList->append(new LValue{name});
+			m_varList->append(new LValue{name.first, name.second});
 		delete pl;
 
 		if (!m_exprList)
@@ -485,8 +563,9 @@ public:
 	const VarList & varList() const { return *m_varList; }
 	const ExprList & exprList() const { return *m_exprList; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		if (m_local)
 			std::cout << "local ";
@@ -520,7 +599,8 @@ public:
 
 private:
 	Assignment(const Assignment &other)
-		: m_varList{static_cast<VarList *>(other.m_varList->clone().release())},
+		: Node{other.location()},
+		  m_varList{static_cast<VarList *>(other.m_varList->clone().release())},
 		  m_exprList{static_cast<ExprList *>(other.m_exprList->clone().release())},
 		  m_local{other.m_local}
 	{
@@ -533,6 +613,8 @@ private:
 
 class Value : public Node {
 public:
+	constexpr Value(const yy::location &location) : Node{location} {}
+
 	bool isValue() const override { return true; }
 
 	Node::Type type() const override { return Type::Value; }
@@ -542,8 +624,11 @@ public:
 
 class NilValue : public Value {
 public:
-	void print(int indent = 0) const override
+	constexpr NilValue(const yy::location &location = yy::location{}) : Value{location} {}
+
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "nil\n";
 	}
@@ -557,16 +642,17 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::make_unique<NilValue>();
+		return std::make_unique<NilValue>(location());
 	}
 };
 
 class BooleanValue : public Value {
 public:
-	BooleanValue(bool v) : m_value{v} {}
+	constexpr BooleanValue(bool v, const yy::location &location = yy::location{}) : Value{location}, m_value{v} {}
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << std::boolalpha << m_value << '\n';
 	}
@@ -585,7 +671,7 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::make_unique<BooleanValue>(m_value);
+		return std::make_unique<BooleanValue>(m_value, location());
 	}
 
 private:
@@ -594,11 +680,12 @@ private:
 
 class StringValue : public Value {
 public:
-	StringValue(const std::string &v) : m_value{v} {}
-	StringValue(std::string &&v) : m_value{std::move(v)} {}
+	StringValue(const std::string &v, const yy::location &location = yy::location{}) : Value{location}, m_value{v} {}
+	StringValue(std::string &&v, const yy::location &location = yy::location{}) : Value{location}, m_value{std::move(v)} {}
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "String: " << m_value << '\n';
 	}
@@ -621,7 +708,7 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::make_unique<StringValue>(m_value);
+		return std::make_unique<StringValue>(m_value, location());
 	}
 
 private:
@@ -630,10 +717,11 @@ private:
 
 class IntValue : public Value {
 public:
-	constexpr IntValue(long v) : m_value{v} {}
+	constexpr IntValue(long v, const yy::location &location = yy::location{}) : Value{location}, m_value{v} {}
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Int: " << m_value << '\n';
 	}
@@ -649,7 +737,7 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::make_unique<IntValue>(m_value);
+		return std::make_unique<IntValue>(m_value, location());
 	}
 
 private:
@@ -658,10 +746,11 @@ private:
 
 class RealValue : public Value {
 public:
-	constexpr RealValue(double v) : m_value{v} {}
+	constexpr RealValue(double v, const yy::location &location = yy::location{}) : Value{location}, m_value{v} {}
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Real: " << m_value << '\n';
 	}
@@ -677,7 +766,7 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::make_unique<RealValue>(m_value);
+		return std::make_unique<RealValue>(m_value, location());
 	}
 
 private:
@@ -686,10 +775,14 @@ private:
 
 class FunctionCall : public Node {
 public:
-	FunctionCall(Node *funcExpr, ExprList *args) : m_functionExpr{funcExpr}, m_args{args} {}
-
-	void print(int indent = 0) const override
+	FunctionCall(Node *funcExpr, ExprList *args, const yy::location &location = yy::location{})
+		: Node{location}, m_functionExpr{funcExpr}, m_args{args}
 	{
+	}
+
+	void print(unsigned indent = 0) const override
+	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Function call:\n";
 		m_functionExpr->print(indent + 1);
@@ -724,7 +817,8 @@ public:
 
 protected:
 	FunctionCall(const FunctionCall &other)
-		: m_functionExpr{other.m_functionExpr->clone()},
+		: Node{other.location()},
+		  m_functionExpr{other.m_functionExpr->clone()},
 		  m_args{static_cast<ExprList *>(other.m_args->clone().release())}
 	{
 	}
@@ -736,11 +830,19 @@ private:
 
 class MethodCall : public FunctionCall {
 public:
-	MethodCall(Node *funcExpr, ExprList *args, const std::string &methodName) : FunctionCall{funcExpr, args}, m_methodName{methodName} {}
-	MethodCall(Node *funcExpr, ExprList *args, std::string &&methodName) : FunctionCall{funcExpr, args}, m_methodName{std::move(methodName)} {}
-
-	void print(int indent = 0) const override
+	MethodCall(Node *funcExpr, ExprList *args, const std::string &methodName, const yy::location &location = yy::location{})
+		: FunctionCall{funcExpr, args, location}, m_methodName{methodName}
 	{
+	}
+
+	MethodCall(Node *funcExpr, ExprList *args, std::string &&methodName, const yy::location &location = yy::location{})
+		: FunctionCall{funcExpr, args, location}, m_methodName{std::move(methodName)}
+	{
+	}
+
+	void print(unsigned indent = 0) const override
+	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Method call:\n";
 		functionExpr().print(indent + 1);
@@ -789,12 +891,24 @@ public:
 		NoIndex,
 	};
 
-	Field(Node *expr, Node *val) : m_type{Type::Brackets}, m_keyExpr{expr}, m_valueExpr{val} {}
-	Field(const std::string &s, Node *val) : m_type{Type::Literal}, m_fieldName{s}, m_valueExpr{val} {}
-	Field(Node *val) : m_type{Type::NoIndex}, m_keyExpr{nullptr}, m_valueExpr{val} {}
-
-	void print(int indent = 0) const override
+	Field(Node *expr, Node *val, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Brackets}, m_keyExpr{expr}, m_valueExpr{val}
 	{
+	}
+
+	Field(const std::string &s, Node *val, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Literal}, m_fieldName{s}, m_valueExpr{val}
+	{
+	}
+
+	Field(Node *val, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::NoIndex}, m_keyExpr{nullptr}, m_valueExpr{val}
+	{
+	}
+
+	void print(unsigned indent = 0) const override
+	{
+		printLocation(indent);
 		do_indent(indent);
 		switch (m_type) {
 			case Type::Brackets:
@@ -847,7 +961,8 @@ public:
 
 private:
 	Field(const Field &other)
-		: m_type{other.m_type}
+		: Node{other.location()},
+		  m_type{other.m_type}
 	{
 		m_valueExpr = other.m_valueExpr->clone();
 
@@ -873,12 +988,13 @@ private:
 
 class TableCtor : public Node {
 public:
-	TableCtor() = default;
+	TableCtor(const yy::location &location = yy::location{}) : Node{location} {}
 
 	void append(Field *f) { m_fields.emplace_back(f); }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "Table:\n";
 		for (const auto &p : m_fields)
@@ -911,6 +1027,7 @@ public:
 	}
 private:
 	TableCtor(const TableCtor &other)
+		: Node{other.location()}
 	{
 		for (const auto &f : other.m_fields)
 			m_fields.emplace_back(static_cast<Field *>(f->clone().release()));
@@ -940,7 +1057,10 @@ public:
 		_last
 	};
 
-	BinOp(Type t, Node *left, Node *right) : m_type{t}, m_left{left}, m_right{right} {}
+	BinOp(Type t, Node *left, Node *right, const yy::location &location = yy::location{})
+		: Node{location}, m_type{t}, m_left{left}, m_right{right}
+	{
+	}
 
 	static const std::vector <ValueType> & applicableTypes(Type t)
 	{
@@ -981,8 +1101,9 @@ public:
 	const Node & left() const { return *m_left; }
 	const Node & right() const { return *m_right; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "BinOp: " << toString() << '\n';
 		m_left->print(indent + 1);
@@ -1008,7 +1129,8 @@ public:
 
 private:
 	BinOp(const BinOp &other)
-		: m_type{other.m_type},
+		: Node{other.location()},
+		  m_type{other.m_type},
 		  m_left{other.m_left->clone()},
 		  m_right{other.m_right->clone()}
 	{
@@ -1027,7 +1149,10 @@ public:
 		Length,
 	};
 
-	UnOp(Type t, Node *op) : m_type{t}, m_operand{op} {}
+	UnOp(Type t, Node *op, const yy::location &location = yy::location{})
+		: Node{location}, m_type{t}, m_operand{op}
+	{
+	}
 
 	static const char * toString(Type t)
 	{
@@ -1039,8 +1164,9 @@ public:
 
 	const Node & operand() const { return *m_operand; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "UnOp: " << toString() << '\n';
 		m_operand->print(indent + 1);
@@ -1063,7 +1189,8 @@ public:
 
 private:
 	UnOp(const UnOp &other)
-		: m_type{other.m_type},
+		: Node{other.location()},
+		  m_type{other.m_type},
 		  m_operand{other.m_operand->clone()}
 	{
 	}
@@ -1074,8 +1201,11 @@ private:
 
 class Break : public Node {
 public:
-	void print(int indent = 0) const override
+	Break(const yy::location &location = yy::location{}) : Node{location} {}
+
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "break\n";
 	}
@@ -1095,10 +1225,14 @@ public:
 
 class Return : public Node {
 public:
-	Return(ExprList *exprList) : m_exprList{exprList} {}
-
-	void print(int indent = 0) const override
+	Return(ExprList *exprList, const yy::location &location = yy::location{})
+		: Node{location}, m_exprList{exprList}
 	{
+	}
+
+	void print(unsigned indent = 0) const override
+	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "return\n";
 		if (m_exprList)
@@ -1117,7 +1251,8 @@ public:
 
 private:
 	Return(const Return &other)
-		: m_exprList{other.m_exprList ? static_cast<ExprList *>(other.m_exprList->clone().release()) : nullptr}
+		: Node{other.location()},
+		  m_exprList{other.m_exprList ? static_cast<ExprList *>(other.m_exprList->clone().release()) : nullptr}
 	{
 	}
 
@@ -1128,7 +1263,10 @@ using FunctionName = std::pair <std::vector <std::string>, std::string>;
 
 class Function : public Node {
 public:
-	Function(ParamList *params, Chunk *chunk) : m_params{params}, m_chunk{chunk}, m_local{false} {}
+	Function(ParamList *params, Chunk *chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_params{params}, m_chunk{chunk}, m_local{false}
+	{
+	}
 
 	const Chunk & chunk() const
 	{
@@ -1171,8 +1309,9 @@ public:
 		m_name.push_back(name);
 	}
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		if (m_local)
 			std::cout << "local ";
@@ -1238,7 +1377,8 @@ public:
 
 private:
 	Function(const Function &other)
-		: m_name{other.m_name},
+		: Node{other.location()},
+		  m_name{other.m_name},
 		  m_method{other.m_method},
 		  m_params{other.m_params ? static_cast<ParamList *>(other.m_params->clone().release()) : nullptr},
 		  m_chunk{other.m_chunk ? static_cast<Chunk *>(other.m_chunk->clone().release()) : nullptr},
@@ -1255,7 +1395,8 @@ private:
 
 class If : public Node {
 public:
-	If(Node *condition, Chunk *chunk)
+	If(Node *condition, Chunk *chunk, const yy::location &location = yy::location{})
+		: Node{location}
 	{
 		m_conditions.emplace_back(condition);
 		appendChunk(chunk);
@@ -1274,8 +1415,9 @@ public:
 		appendChunk(chunk);
 	}
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "if:\n";
 		m_conditions[0]->print(indent + 1);
@@ -1312,6 +1454,7 @@ private:
 	}
 
 	If(const If &other)
+		: Node{other.location()}
 	{
 		for (const auto &n : other.m_conditions)
 			m_conditions.emplace_back(n->clone());
@@ -1328,13 +1471,17 @@ private:
 
 class While : public Node {
 public:
-	While(Node *condition, Chunk *chunk) : m_condition{condition}, m_chunk{chunk} {}
+	While(Node *condition, Chunk *chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_condition{condition}, m_chunk{chunk}
+	{
+	}
 
 	const Chunk & chunk() const { return *m_chunk; }
 	const Node & condition() const { return *m_condition; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "while:\n";
 		m_condition->print(indent + 1);
@@ -1350,7 +1497,8 @@ public:
 
 private:
 	While(const While &other)
-		: m_condition{other.m_condition->clone()},
+		: Node{other.location()},
+		  m_condition{other.m_condition->clone()},
 		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
 	{
 	}
@@ -1361,13 +1509,17 @@ private:
 
 class Repeat : public Node {
 public:
-	Repeat(Node *condition, Chunk *chunk) : m_condition{condition}, m_chunk{chunk} {}
+	Repeat(Node *condition, Chunk *chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_condition{condition}, m_chunk{chunk}
+	{
+	}
 
 	const Chunk & chunk() const { return *m_chunk; }
 	const Node & condition() const { return *m_condition; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "repeat:\n";
 		m_chunk->print(indent + 1);
@@ -1383,7 +1535,8 @@ public:
 
 private:
 	Repeat(const Repeat &other)
-		: m_condition{other.m_condition->clone()},
+		: Node{other.location()},
+		  m_condition{other.m_condition->clone()},
 		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
 	{
 	}
@@ -1394,8 +1547,8 @@ private:
 
 class For : public Node {
 public:
-	For(const std::string &iterator, Node *start, Node *limit, Node *step, Chunk *chunk)
-		: m_iterator{iterator}, m_start{start}, m_limit{limit}, m_step{step}, m_chunk{chunk}
+	For(const std::string &iterator, Node *start, Node *limit, Node *step, Chunk *chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_iterator{iterator}, m_start{start}, m_limit{limit}, m_step{step}, m_chunk{chunk}
 	{
 		if (!m_step)
 			return;
@@ -1422,8 +1575,9 @@ public:
 	bool hasStepExpression() const { return m_step.get() != nullptr; }
 	const Node & stepExpr() const { return *m_step; }
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "for:\n";
 
@@ -1494,7 +1648,8 @@ public:
 
 private:
 	For(const For &other)
-		: m_iterator{other.m_iterator},
+		: Node{other.location()},
+		  m_iterator{other.m_iterator},
 		  m_start{other.m_start->clone()},
 		  m_limit{other.m_limit->clone()},
 		  m_step{other.m_step ? other.m_step->clone() : nullptr},
@@ -1509,11 +1664,12 @@ private:
 
 class ForEach : public Node {
 public:
-	ForEach(ParamList *variables, ExprList *exprs, Chunk *chunk)
-		: m_variables{variables}, m_exprs{exprs}, m_chunk{chunk} {}
+	ForEach(ParamList *variables, ExprList *exprs, Chunk *chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_variables{variables}, m_exprs{exprs}, m_chunk{chunk} {}
 
-	void print(int indent = 0) const override
+	void print(unsigned indent = 0) const override
 	{
+		printLocation(indent);
 		do_indent(indent);
 		std::cout << "for_each:\n";
 		m_variables->print(indent + 1);
@@ -1554,7 +1710,8 @@ public:
 
 private:
 	ForEach(const ForEach &other)
-		: m_variables{static_cast<ParamList *>(other.m_variables->clone().release())},
+		: Node{other.location()},
+		  m_variables{static_cast<ParamList *>(other.m_variables->clone().release())},
 		  m_exprs{static_cast<ExprList *>(other.m_exprs->clone().release())},
 		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
 	{

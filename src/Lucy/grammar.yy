@@ -89,7 +89,7 @@ SEMICOLON {
 
 chunk :
 last_statement {
-	$$ = new Chunk{};
+	$$ = new Chunk{@$};
 	$$->append($last_statement);
 }
 | chunk_base last_statement {
@@ -106,7 +106,7 @@ last_statement {
 
 chunk_base :
 statement opt_semicolon {
-	$$ = new Chunk{};
+	$$ = new Chunk{@$};
 	$$->append($statement);
 }
 | chunk statement opt_semicolon {
@@ -129,13 +129,13 @@ var {
 	$$ = $function_call;
 }
 | LPAREN expr RPAREN {
-	$$ = new NestedExpr{$expr};
+	$$ = new NestedExpr{$expr, @$};
 }
 ;
 
 statement :
 var_list ASSIGN expr_list {
-	$$ = new Assignment{$var_list, $expr_list};
+	$$ = new Assignment{$var_list, $expr_list, @$};
 }
 | function_call {
 	$$ = $function_call;
@@ -144,10 +144,10 @@ var_list ASSIGN expr_list {
 	$$ = $block;
 }
 | WHILE expr DO block END {
-	$$ = new While{$expr, $block};
+	$$ = new While{$expr, $block, @$};
 }
 | REPEAT block UNTIL expr {
-	$$ = new Repeat{$expr, $block};
+	$$ = new Repeat{$expr, $block, @$};
 }
 | if else_if_list else END {
 	If *tmp = $if;
@@ -157,13 +157,13 @@ var_list ASSIGN expr_list {
 	$$ = tmp;
 }
 | FOR ID ASSIGN expr[start] COMMA expr[limit] COMMA expr[step] DO block END {
-	$$ = new For{$ID, $start, $limit, $step, $block};
+	$$ = new For{$ID, $start, $limit, $step, $block, @$};
 }
 | FOR ID ASSIGN expr[start] COMMA expr[limit] DO block END {
-	$$ = new For{$ID, $start, $limit, nullptr, $block};
+	$$ = new For{$ID, $start, $limit, nullptr, $block, @$};
 }
 | FOR name_list IN expr_list DO block END {
-	$$ = new ForEach{$name_list, $expr_list, $block};
+	$$ = new ForEach{$name_list, $expr_list, $block, @$};
 }
 | FUNCTION function_name function_body {
 	$function_body->setName($function_name);
@@ -175,12 +175,12 @@ var_list ASSIGN expr_list {
 	$$ = $function_body;
 }
 | LOCAL name_list {
-	auto tmp = new Assignment{$name_list, nullptr};
+	auto tmp = new Assignment{$name_list, nullptr, @$};
 	tmp->setLocal(true);
 	$$ = tmp;
 }
 | LOCAL name_list ASSIGN expr_list {
-	auto tmp = new Assignment{$name_list, $expr_list};
+	auto tmp = new Assignment{$name_list, $expr_list, @$};
 	tmp->setLocal(true);
 	$$ = tmp;
 }
@@ -208,7 +208,7 @@ ID {
 
 if :
 IF expr THEN block {
-	$$ = new If{$expr, $block};
+	$$ = new If{$expr, $block, @$};
 }
 ;
 
@@ -243,18 +243,18 @@ else_if {
 
 last_statement :
 RETURN expr_list opt_semicolon {
-	$$ = new Return{$expr_list};
+	$$ = new Return{$expr_list, @$};
 }
 | RETURN opt_semicolon {
-	$$ = new Return{nullptr};
+	$$ = new Return{nullptr, @$};
 }
 | BREAK opt_semicolon {
-	$$ = new Break{};
+	$$ = new Break{@$};
 };
 
 expr_list :
 expr {
-	$$ = new ExprList{};
+	$$ = new ExprList{@$};
 	$$->append($expr);
 }
 | expr_list[exprs] COMMA expr {
@@ -265,7 +265,7 @@ expr {
 
 var_list :
 var {
-	$$ = new VarList{};
+	$$ = new VarList{@$};
 	$$->append($var);
 }
 | var_list[vars] COMMA var {
@@ -276,22 +276,22 @@ var {
 
 var :
 ID {
-	$$ = new LValue{$ID};
+	$$ = new LValue{$ID, @$};
 }
 | prefix_expr LBRACKET expr RBRACKET {
-	$$ = new LValue{$prefix_expr, $expr};
+	$$ = new LValue{$prefix_expr, $expr, @$};
 }
 | prefix_expr DOT ID {
-	$$ = new LValue{$prefix_expr, $ID};
+	$$ = new LValue{$prefix_expr, $ID, @$};
 }
 ;
 
 function_call :
 prefix_expr args {
-	$$ = new FunctionCall{$prefix_expr, $args};
+	$$ = new FunctionCall{$prefix_expr, $args, @$};
 }
 | prefix_expr COLON ID args {
-	$$ = new MethodCall{$prefix_expr, $args, $ID};
+	$$ = new MethodCall{$prefix_expr, $args, $ID, @$};
 }
 ;
 
@@ -300,15 +300,15 @@ LPAREN expr_list RPAREN {
 	$$ = $expr_list;
 }
 | LPAREN RPAREN {
-	$$ = new ExprList{};
+	$$ = new ExprList{@$};
 }
 | table_ctor {
-	$$ = new ExprList{};
+	$$ = new ExprList{@$};
 	$$->append($table_ctor);
 }
 | STRING_VALUE {
-	$$ = new ExprList{};
-	$$->append(new StringValue{$STRING_VALUE});
+	$$ = new ExprList{@$};
+	$$->append(new StringValue{$STRING_VALUE, @$});
 }
 ;
 
@@ -320,10 +320,10 @@ FUNCTION function_body {
 
 function_body :
 LPAREN RPAREN function_body_block[block] {
-	$$ = new Function{nullptr, $block};
+	$$ = new Function{nullptr, $block, @$};
 }
 | LPAREN param_list RPAREN function_body_block[block] {
-	$$ = new Function{$param_list, $block};
+	$$ = new Function{$param_list, $block, @$};
 }
 ;
 
@@ -338,12 +338,12 @@ block END {
 
 name_list :
 ID {
-	$$ = new ParamList{};
-	$$->append($ID);
+	$$ = new ParamList{@$};
+	$$->append($ID, @$);
 }
 | name_list[names] COMMA ID {
 	$$ = $names;
-	$$->append($ID);
+	$$->append($ID, @$);
 }
 ;
 
@@ -356,88 +356,88 @@ name_list COMMA ELLIPSIS {
 	$$ = $name_list;
 }
 | ELLIPSIS {
-	$$ = new ParamList{};
+	$$ = new ParamList{@$};
 	$$->setEllipsis();
 }
 ;
 
 expr :
 NIL {
-	$$ = new NilValue{};
+	$$ = new NilValue{@$};
 }
 | FALSE {
-	$$ = new BooleanValue{false};
+	$$ = new BooleanValue{false, @$};
 }
 | TRUE {
-	$$ = new BooleanValue{true};
+	$$ = new BooleanValue{true, @$};
 }
 | INT_VALUE {
-	$$ = new IntValue{$INT_VALUE};
+	$$ = new IntValue{$INT_VALUE, @$};
 }
 | REAL_VALUE {
-	$$ = new RealValue{$REAL_VALUE};
+	$$ = new RealValue{$REAL_VALUE, @$};
 }
 | STRING_VALUE {
-	$$ = new StringValue{$STRING_VALUE};
+	$$ = new StringValue{$STRING_VALUE, @$};
 }
 | ELLIPSIS {
-	$$ = new Ellipsis{};
+	$$ = new Ellipsis{@$};
 }
 | function {
 	$$ = $function;
 }
 | expr[left] OR expr[right] {
-	$$ = new BinOp{BinOp::Type::Or, $left, $right};
+	$$ = new BinOp{BinOp::Type::Or, $left, $right, @$};
 }
 | expr[left] AND expr[right] {
-	$$ = new BinOp{BinOp::Type::And, $left, $right};
+	$$ = new BinOp{BinOp::Type::And, $left, $right, @$};
 }
 | expr[left] LT expr[right] {
-	$$ = new BinOp{BinOp::Type::Less, $left, $right};
+	$$ = new BinOp{BinOp::Type::Less, $left, $right, @$};
 }
 | expr[left] LE expr[right] {
-	$$ = new BinOp{BinOp::Type::LessEqual, $left, $right};
+	$$ = new BinOp{BinOp::Type::LessEqual, $left, $right, @$};
 }
 | expr[left] GT expr[right] {
-	$$ = new BinOp{BinOp::Type::Greater, $left, $right};
+	$$ = new BinOp{BinOp::Type::Greater, $left, $right, @$};
 }
 | expr[left] GE expr[right] {
-	$$ = new BinOp{BinOp::Type::GreaterEqual, $left, $right};
+	$$ = new BinOp{BinOp::Type::GreaterEqual, $left, $right, @$};
 }
 | expr[left] EQ expr[right] {
-	$$ = new BinOp{BinOp::Type::Equal, $left, $right};
+	$$ = new BinOp{BinOp::Type::Equal, $left, $right, @$};
 }
 | expr[left] NE expr[right] {
-	$$ = new BinOp{BinOp::Type::NotEqual, $left, $right};
+	$$ = new BinOp{BinOp::Type::NotEqual, $left, $right, @$};
 }
 | expr[left] PLUS expr[right] {
-	$$ = new BinOp{BinOp::Type::Plus, $left, $right};
+	$$ = new BinOp{BinOp::Type::Plus, $left, $right, @$};
 }
 | expr[left] MINUS expr[right] {
-	$$ = new BinOp{BinOp::Type::Minus, $left, $right};
+	$$ = new BinOp{BinOp::Type::Minus, $left, $right, @$};
 }
 | expr[left] MUL expr[right] {
-	$$ = new BinOp{BinOp::Type::Times, $left, $right};
+	$$ = new BinOp{BinOp::Type::Times, $left, $right, @$};
 }
 | expr[left] DIV expr[right] {
-	$$ = new BinOp{BinOp::Type::Divide, $left, $right};
+	$$ = new BinOp{BinOp::Type::Divide, $left, $right, @$};
 }
 | expr[left] MOD expr[right] {
-	$$ = new BinOp{BinOp::Type::Modulo, $left, $right};
+	$$ = new BinOp{BinOp::Type::Modulo, $left, $right, @$};
 }
 | expr[left] POWER expr[right] {
-	$$ = new BinOp{BinOp::Type::Exponentation, $left, $right};
+	$$ = new BinOp{BinOp::Type::Exponentation, $left, $right, @$};
 }
 | expr[left] CONCAT expr[right] {
-	$$ = new BinOp{BinOp::Type::Concat, $left, $right};
+	$$ = new BinOp{BinOp::Type::Concat, $left, $right, @$};
 }
 | MINUS expr[neg] %prec NEGATE {
 	if ($neg->isValue()) {
 		const auto *v = static_cast<const Value *>($neg);
 		if (v->valueType() == ValueType::Integer) {
-			$$ = new IntValue{-static_cast<const IntValue *>(v)->value()};
+			$$ = new IntValue{-static_cast<const IntValue *>(v)->value(), @$};
 		} else if (v->valueType() == ValueType::Real) {
-			$$ = new RealValue{-static_cast<const RealValue *>(v)->value()};
+			$$ = new RealValue{-static_cast<const RealValue *>(v)->value(), @$};
 		} else {
 			std::cerr << "Invalid ValueType for unary minus operator\n";
 			abort();
@@ -445,14 +445,14 @@ NIL {
 
 		delete $neg;
 	} else {
-		$$ = new UnOp{UnOp::Type::Negate, $neg};
+		$$ = new UnOp{UnOp::Type::Negate, $neg, @$};
 	}
 }
 | NOT expr[not] {
-	$$ = new UnOp{UnOp::Type::Not, $not};
+	$$ = new UnOp{UnOp::Type::Not, $not, @$};
 }
 | HASH expr[len] {
-	$$ = new UnOp{UnOp::Type::Length, $len};
+	$$ = new UnOp{UnOp::Type::Length, $len, @$};
 }
 | table_ctor {
 	$$ = $table_ctor;
@@ -464,7 +464,7 @@ NIL {
 
 table_ctor :
 LBRACE RBRACE {
-	$$ = new TableCtor{};
+	$$ = new TableCtor{@$};
 }
 | LBRACE field_list RBRACE {
 	$$ = $field_list;
@@ -477,7 +477,7 @@ field_list : field_list_base opt_field_separator {
 
 field_list_base :
 field {
-	$$ = new TableCtor{};
+	$$ = new TableCtor{@$};
 	$$->append($field);
 }
 | field_list_base[fields] field_separator field {
@@ -502,13 +502,13 @@ field_separator {
 
 field :
 LBRACKET expr[key] RBRACKET ASSIGN expr[val] {
-	$$ = new Field{$key, $val};
+	$$ = new Field{$key, $val, @$};
 }
 | ID[key] ASSIGN expr[val] {
-	$$ = new Field{$key, $val};
+	$$ = new Field{$key, $val, @$};
 }
 | expr[val] {
-	$$ = new Field{$val};
+	$$ = new Field{$val, @$};
 }
 ;
 
