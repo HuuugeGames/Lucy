@@ -41,7 +41,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 	for (const auto &insn : chunk.children()) {
 		if (current->exitType != BasicBlock::ExitType::Fallthrough) {
-			std::cerr << "Dangling statements after block exit\n"; //TODO location info
+			std::cerr << insn->location() << " : dangling statements after block exit\n";
 			break;
 		}
 
