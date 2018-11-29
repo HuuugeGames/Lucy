@@ -5,10 +5,12 @@
 #include "AST.hpp"
 #include "BasicBlock.hpp"
 #include "ControlFlowGraph.hpp"
+#include "Function.hpp"
 #include "Serial.hpp"
 
 struct CFGContext {
-	std::vector <BasicBlock *> breakBlocks;
+	std::vector <std::pair <BasicBlock *, const AST::Break &> > breakBlocks;
+	std::vector <BasicBlock *> returnBlocks;
 };
 
 ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk)
@@ -16,9 +18,18 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk)
 	CFGContext ctx;
 	std::tie(m_entry, m_exit) = process(ctx, chunk);
 
+	for (const auto &brk : ctx.breakBlocks) {
+		std::cerr << brk.second.location() << " : no loop to break from\n";
+	}
+
+	for (auto ret : ctx.returnBlocks)
+		ret->nextBlock[0] = m_exit;
+
 	calcPredecessors();
 	prune();
 }
+
+ControlFlowGraph::~ControlFlowGraph() = default;
 
 std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx, const AST::Chunk &chunk)
 {
@@ -31,8 +42,8 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 	auto redirectBreaks = [this, &ctx](BasicBlock *dst)
 	{
-		for (auto bb : ctx.breakBlocks)
-			bb->nextBlock[0] = dst;
+		for (const auto &brk : ctx.breakBlocks)
+			brk.first->nextBlock[0] = dst;
 		ctx.breakBlocks.clear();
 	};
 
@@ -46,10 +57,12 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 		}
 
 		switch (insn->type()) {
-			case AST::Node::Type::Break:
+			case AST::Node::Type::Break: {
+				auto breakNode = static_cast<const AST::Break *>(insn.get());
 				current->exitType = BasicBlock::ExitType::Break;
-				ctx.breakBlocks.push_back(current);
+				ctx.breakBlocks.emplace_back(current, *breakNode);
 				break;
+			}
 			case AST::Node::Type::Function: {
 				auto fnNode = static_cast<const AST::Function *>(insn.get());
 				process(ctx, *fnNode);
@@ -80,6 +93,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			case AST::Node::Type::Return: {
 				auto returnNode = static_cast<const AST::Return *>(insn.get());
 				current->exitType = BasicBlock::ExitType::Return;
+				ctx.returnBlocks.push_back(current);
 
 				if (!returnNode->empty()) {
 					current->returnExprList = &returnNode->exprList();
@@ -232,7 +246,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::Field &field)
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::Function &fnNode)
 {
-	m_subgraphs.emplace_back(new ControlFlowGraph{fnNode.chunk()});
+	m_functions.emplace_back(new Function{fnNode});
 }
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::FunctionCall &fnCallNode)
@@ -495,9 +509,6 @@ void ControlFlowGraph::graphvizDump(std::ostream &os)
 
 		os << '\n';
 	}
-
-	for (const auto &subgraph : m_subgraphs)
-		subgraph->graphvizDump(os);
 }
 
 void ControlFlowGraph::graphvizDump(const char *filename)

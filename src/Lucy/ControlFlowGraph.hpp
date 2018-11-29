@@ -21,6 +21,7 @@ namespace AST {
 }
 
 class CFGContext;
+class Function;
 
 class ControlFlowGraph {
 public:
@@ -28,8 +29,9 @@ public:
 
 	ControlFlowGraph(const ControlFlowGraph &) = delete;
 	void operator = (const ControlFlowGraph &) = delete;
-	~ControlFlowGraph() = default;
+	~ControlFlowGraph();
 
+	const BasicBlock * entry() const { return m_entry; }
 	void graphvizDump(const char *filename);
 	void graphvizDump(const std::string &filename) { graphvizDump(filename.c_str()); }
 
@@ -57,5 +59,5 @@ private:
 	BasicBlock *m_entry, *m_exit;
 	unsigned m_walkPhase = 0;
 
-	std::vector <std::unique_ptr <ControlFlowGraph> > m_subgraphs;
+	std::vector <std::unique_ptr <Function> > m_functions;
 };

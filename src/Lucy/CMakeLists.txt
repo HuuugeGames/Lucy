@@ -11,6 +11,7 @@ add_executable(${PROJECT_NAME}
 	Config.cpp
 	ControlFlowGraph.cpp
 	Driver.cpp
+	Function.cpp
 	Logger.cpp
 	Preprocessor.cpp
 
