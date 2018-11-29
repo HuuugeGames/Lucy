@@ -6,7 +6,9 @@
 
 #include "Serial.hpp"
 
-class Node;
+namespace AST {
+	class Node;
+}
 
 struct BasicBlock {
 	enum class ExitType {
@@ -25,11 +27,11 @@ struct BasicBlock {
 	~BasicBlock() = default;
 
 	std::string label;
-	std::vector <const Node *> insn;
+	std::vector <const AST::Node *> insn;
 	ExitType exitType = ExitType::Fallthrough;
 
-	const Node *returnExprList = nullptr;
-	const Node *condition = nullptr;
+	const AST::Node *returnExprList = nullptr;
+	const AST::Node *condition = nullptr;
 	std::array <BasicBlock *, 2> nextBlock = {nullptr, nullptr};
 	std::vector <BasicBlock *> predecessors;
 	unsigned phase;

@@ -13,9 +13,9 @@ class Driver {
 public:
 	Driver();
 
-	void addChunk(Chunk *chunk);
-	std::vector <std::unique_ptr <Chunk> > & chunks();
-	const std::vector <std::unique_ptr <Chunk> > & chunks() const;
+	void addChunk(AST::Chunk *chunk);
+	std::vector <std::unique_ptr <AST::Chunk> > & chunks();
+	const std::vector <std::unique_ptr <AST::Chunk> > & chunks() const;
 
 	int parse();
 
@@ -33,7 +33,7 @@ private:
 	std::istream m_inputStream;
 	std::ifstream m_inputFile;
 
-	std::vector <std::unique_ptr <Chunk> > m_chunks;
+	std::vector <std::unique_ptr <AST::Chunk> > m_chunks;
 	std::string m_filename;
 	yy::position m_position;
 };

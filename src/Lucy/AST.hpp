@@ -11,6 +11,8 @@
 #include "EnumHelpers.hpp"
 #include "ValueType.hpp"
 
+namespace AST {
+
 class Node {
 public:
 	enum class Type {
@@ -1721,3 +1723,5 @@ private:
 	std::unique_ptr <ExprList> m_exprs;
 	std::unique_ptr <Chunk> m_chunk;
 };
+
+} //namespace AST

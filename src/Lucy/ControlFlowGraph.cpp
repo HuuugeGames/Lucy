@@ -11,7 +11,7 @@ struct CFGContext {
 	std::vector <BasicBlock *> breakBlocks;
 };
 
-ControlFlowGraph::ControlFlowGraph(const Chunk &chunk)
+ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk)
 {
 	CFGContext ctx;
 	std::tie(m_entry, m_exit) = process(ctx, chunk);
@@ -20,7 +20,7 @@ ControlFlowGraph::ControlFlowGraph(const Chunk &chunk)
 	prune();
 }
 
-std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx, const Chunk &chunk)
+std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx, const AST::Chunk &chunk)
 {
 	auto makeBB = [this]
 	{
@@ -46,39 +46,39 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 		}
 
 		switch (insn->type()) {
-			case Node::Type::Break:
+			case AST::Node::Type::Break:
 				current->exitType = BasicBlock::ExitType::Break;
 				ctx.breakBlocks.push_back(current);
 				break;
-			case Node::Type::Function: {
-				const Function *fnNode = static_cast<const Function *>(insn.get());
+			case AST::Node::Type::Function: {
+				auto fnNode = static_cast<const AST::Function *>(insn.get());
 				process(ctx, *fnNode);
 				current->insn.push_back(insn.get());
 				break;
 			}
-			case Node::Type::Assignment: {
-				const Assignment *assignmentNode = static_cast<const Assignment *>(insn.get());
+			case AST::Node::Type::Assignment: {
+				auto assignmentNode = static_cast<const AST::Assignment *>(insn.get());
 				process(ctx, *assignmentNode);
 				current->insn.push_back(insn.get());
 				break;
 			}
-			case Node::Type::FunctionCall:
-			case Node::Type::MethodCall: {
-				const FunctionCall *fnCallNode = static_cast<const FunctionCall *>(insn.get());
+			case AST::Node::Type::FunctionCall:
+			case AST::Node::Type::MethodCall: {
+				auto fnCallNode = static_cast<const AST::FunctionCall *>(insn.get());
 				process(ctx, *fnCallNode);
 				current->insn.push_back(insn.get());
 				break;
 			}
-			case Node::Type::Chunk: {
-				const Chunk *subChunk = static_cast<const Chunk *>(insn.get());
+			case AST::Node::Type::Chunk: {
+				auto subChunk = static_cast<const AST::Chunk *>(insn.get());
 				auto [entry, exit] = process(ctx, *subChunk);
 				current->nextBlock[0] = entry;
 				current = makeBB();
 				exit->nextBlock[0] = current;
 				break;
 			}
-			case Node::Type::Return: {
-				const Return *returnNode = static_cast<const Return *>(insn.get());
+			case AST::Node::Type::Return: {
+				auto returnNode = static_cast<const AST::Return *>(insn.get());
 				current->exitType = BasicBlock::ExitType::Return;
 
 				if (!returnNode->empty()) {
@@ -90,8 +90,8 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 				break;
 			}
-			case Node::Type::If: {
-				const If *ifNode = static_cast<const If *>(insn.get());
+			case AST::Node::Type::If: {
+				auto ifNode = static_cast<const AST::If *>(insn.get());
 				const auto &cond = ifNode->conditions();
 				const auto &chunks = ifNode->chunks();
 				std::vector <BasicBlock *> exits;
@@ -127,8 +127,8 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 					exit->nextBlock[0] = current;
 				break;
 			}
-			case Node::Type::While: {
-				const While *whileNode = static_cast<const While *>(insn.get());
+			case AST::Node::Type::While: {
+				auto whileNode = static_cast<const AST::While *>(insn.get());
 				process(ctx, whileNode->condition());
 
 				auto previous = current;
@@ -147,8 +147,8 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				redirectBreaks(current);
 				break;
 			}
-			case Node::Type::Repeat: {
-				const Repeat *repeatNode = static_cast<const Repeat *>(insn.get());
+			case AST::Node::Type::Repeat: {
+				auto repeatNode = static_cast<const AST::Repeat *>(insn.get());
 				process(ctx, repeatNode->condition());
 
 				auto [entry, exit] = process(ctx, repeatNode->chunk());
@@ -166,9 +166,9 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				redirectBreaks(current);
 				break;
 			}
-			case Node::Type::For: {
-				const For *forNode = static_cast<const For *>(insn.get());
-				m_additionalNodes.emplace_back(new Assignment{forNode->iterator(), forNode->startExpr().clone()});
+			case AST::Node::Type::For: {
+				auto forNode = static_cast<const AST::For *>(insn.get());
+				m_additionalNodes.emplace_back(new AST::Assignment{forNode->iterator(), forNode->startExpr().clone()});
 				current->insn.push_back(m_additionalNodes.back().get());
 
 				auto previous = current;
@@ -194,8 +194,8 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				redirectBreaks(current);
 				break;
 			}
-			case Node::Type::ForEach: {
-				const ForEach *forEachNode = static_cast<const ForEach *>(insn.get());
+			case AST::Node::Type::ForEach: {
+				auto forEachNode = static_cast<const AST::ForEach *>(insn.get());
 				auto [entry, exit] = process(ctx, rewrite(ctx, *forEachNode));
 				current->nextBlock[0] = entry;
 				current = makeBB();
@@ -212,75 +212,75 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 	return {entry, current};
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const Assignment &assignment)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::Assignment &assignment)
 {
 	process(ctx, assignment.varList());
 	process(ctx, assignment.exprList());
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const ExprList &exprList)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::ExprList &exprList)
 {
 	for (const auto &e : exprList.exprs())
 		process(ctx, *e);
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const Field &field)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::Field &field)
 {
-	if (field.fieldType() == Field::Type::Brackets)
+	if (field.fieldType() == AST::Field::Type::Brackets)
 		process(ctx, field.keyExpr());
 	process(ctx, field.valueExpr());
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const Function &fnNode)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::Function &fnNode)
 {
 	m_subgraphs.emplace_back(new ControlFlowGraph{fnNode.chunk()});
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const FunctionCall &fnCallNode)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::FunctionCall &fnCallNode)
 {
 	process(ctx, fnCallNode.functionExpr());
 	process(ctx, fnCallNode.args());
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const LValue &lv)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::LValue &lv)
 {
-	if (lv.lvalueType() != LValue::Type::Name)
+	if (lv.lvalueType() != AST::LValue::Type::Name)
 		process(ctx, *lv.tableExpr());
 
-	if (lv.lvalueType() == LValue::Type::Bracket)
+	if (lv.lvalueType() == AST::LValue::Type::Bracket)
 		process(ctx, *lv.keyExpr());
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const Node &node)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::Node &node)
 {
-	if (node.isValue() || node.type() == Node::Type::Ellipsis)
+	if (node.isValue() || node.type() == AST::Node::Type::Ellipsis)
 		return;
 
 	switch (node.type()) {
-		case Node::Type::Function:
-			process(ctx, static_cast<const Function &>(node));
+		case AST::Node::Type::Function:
+			process(ctx, static_cast<const AST::Function &>(node));
 			break;
-		case Node::Type::FunctionCall:
-		case Node::Type::MethodCall:
-			process(ctx, static_cast<const FunctionCall &>(node));
+		case AST::Node::Type::FunctionCall:
+		case AST::Node::Type::MethodCall:
+			process(ctx, static_cast<const AST::FunctionCall &>(node));
 			break;
-		case Node::Type::TableCtor:
-			process(ctx, static_cast<const TableCtor &>(node));
+		case AST::Node::Type::TableCtor:
+			process(ctx, static_cast<const AST::TableCtor &>(node));
 			break;
-		case Node::Type::NestedExpr:
-			process(ctx, static_cast<const NestedExpr &>(node).expr());
+		case AST::Node::Type::NestedExpr:
+			process(ctx, static_cast<const AST::NestedExpr &>(node).expr());
 			break;
-		case Node::Type::LValue:
-			process(ctx, static_cast<const LValue &>(node));
+		case AST::Node::Type::LValue:
+			process(ctx, static_cast<const AST::LValue &>(node));
 			break;
-		case Node::Type::BinOp: {
-			const BinOp &boNode = static_cast<const BinOp &>(node);
+		case AST::Node::Type::BinOp: {
+			const AST::BinOp &boNode = static_cast<const AST::BinOp &>(node);
 			process(ctx, boNode.left());
 			process(ctx, boNode.right());
 			break;
 		}
-		case Node::Type::UnOp: {
-			process(ctx, static_cast<const UnOp &>(node).operand());
+		case AST::Node::Type::UnOp: {
+			process(ctx, static_cast<const AST::UnOp &>(node).operand());
 			break;
 		}
 		default:
@@ -289,13 +289,13 @@ void ControlFlowGraph::process(CFGContext &ctx, const Node &node)
 	}
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const TableCtor &table)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::TableCtor &table)
 {
 	for (const auto &f : table.fields())
 		process(ctx, *f);
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const VarList &varList)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::VarList &varList)
 {
 	for (const auto &v : varList.vars())
 		process(ctx, *v);
@@ -375,37 +375,37 @@ void ControlFlowGraph::prune()
 	}
 }
 
-const Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const ForEach &forEach)
+const AST::Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::ForEach &forEach)
 {
 	const char IteratorFn[] = "__f";
 	const char InvariantState[] = "__s";
 	const char ControlVar[] = "__c";
 
-	Chunk *result = new Chunk{};
+	AST::Chunk *result = new AST::Chunk{};
 	m_additionalNodes.emplace_back(result);
 
-	VarList *initVars = new VarList{IteratorFn, InvariantState, ControlVar};
-	Assignment *initAssignment = new Assignment{initVars, forEach.cloneExprList().release()};
+	AST::VarList *initVars = new AST::VarList{IteratorFn, InvariantState, ControlVar};
+	AST::Assignment *initAssignment = new AST::Assignment{initVars, forEach.cloneExprList().release()};
 	initAssignment->setLocal(true);
 	result->append(initAssignment);
 
-	Chunk *loopChunk = new Chunk{};
-	While *loop = new While{new BooleanValue{true}, loopChunk};
+	AST::Chunk *loopChunk = new AST::Chunk{};
+	AST::While *loop = new AST::While{new AST::BooleanValue{true}, loopChunk};
 	result->append(loop);
 
 	//Is it JSON yet?
-	Assignment *loopAssignment = new Assignment
+	AST::Assignment *loopAssignment = new AST::Assignment
 	{
 		forEach.cloneVariables().release(),
-		new ExprList
+		new AST::ExprList
 		{
-			new FunctionCall
+			new AST::FunctionCall
 			{
-				new LValue{IteratorFn},
-				new ExprList
+				new AST::LValue{IteratorFn},
+				new AST::ExprList
 				{
-					new LValue{InvariantState},
-					new LValue{ControlVar}
+					new AST::LValue{InvariantState},
+					new AST::LValue{ControlVar}
 				}
 			}
 		}
@@ -413,19 +413,19 @@ const Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const ForEach &forEach)
 	loopAssignment->setLocal(true);
 	loopChunk->append(loopAssignment);
 
-	loopChunk->append(new Assignment{ControlVar, forEach.variables().names()[0].first});
+	loopChunk->append(new AST::Assignment{ControlVar, forEach.variables().names()[0].first});
 
-	If *endLoopCondition = new If
+	AST::If *endLoopCondition = new AST::If
 	{
-		new BinOp
+		new AST::BinOp
 		{
-			BinOp::Type::Equal,
-			new LValue{ControlVar},
-			new NilValue{},
+			AST::BinOp::Type::Equal,
+			new AST::LValue{ControlVar},
+			new AST::NilValue{},
 		},
-		new Chunk
+		new AST::Chunk
 		{
-			new Break{}
+			new AST::Break{}
 		}
 	};
 	loopChunk->append(endLoopCondition);
