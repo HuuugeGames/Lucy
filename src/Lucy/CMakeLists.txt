@@ -14,6 +14,8 @@ add_executable(${PROJECT_NAME}
 	Function.cpp
 	Logger.cpp
 	Preprocessor.cpp
+	Scope.cpp
+	Store.cpp
 
 	main.cpp
 )

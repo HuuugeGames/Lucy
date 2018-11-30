@@ -4,20 +4,22 @@
 #include <string>
 #include <vector>
 
-#include "ControlFlowGraph.hpp"
+#include "Scope.hpp"
 
 namespace AST {
 	class Function;
 }
 
+class ControlFlowGraph;
+
 class Function {
 public:
-	Function(const AST::Function &fnNode);
+	Function(const AST::Function &fnNode, Scope &scope);
+
+	const ControlFlowGraph & cfg() const { return *m_cfg; }
 
 private:
-	void findUpvalues();
-
 	const AST::Function &m_fnNode;
+	Scope m_fnScope;
 	std::unique_ptr <ControlFlowGraph> m_cfg;
-	std::vector <std::string> m_upvalues;
 };

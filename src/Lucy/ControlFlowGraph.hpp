@@ -25,15 +25,15 @@ class Function;
 
 class ControlFlowGraph {
 public:
-	ControlFlowGraph(const AST::Chunk &chunk);
+	ControlFlowGraph(const AST::Chunk &chunk, Scope &scope);
 
 	ControlFlowGraph(const ControlFlowGraph &) = delete;
 	void operator = (const ControlFlowGraph &) = delete;
 	~ControlFlowGraph();
 
 	const BasicBlock * entry() const { return m_entry; }
-	void graphvizDump(const char *filename);
-	void graphvizDump(const std::string &filename) { graphvizDump(filename.c_str()); }
+	void graphvizDump(const char *filename) const;
+	void graphvizDump(const std::string &filename) const { graphvizDump(filename.c_str()); }
 
 private:
 	std::pair <BasicBlock *, BasicBlock *> process(CFGContext &ctx, const AST::Chunk &chunk);
@@ -49,7 +49,7 @@ private:
 
 	void calcPredecessors();
 	void prune();
-	void graphvizDump(std::ostream &os);
+	void graphvizDump(std::ostream &os) const;
 
 	const AST::Chunk & rewrite(CFGContext &ctx, const AST::ForEach &forEach);
 
