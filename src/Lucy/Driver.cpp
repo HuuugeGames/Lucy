@@ -1,6 +1,7 @@
 #include <cstring>
 
 #include "Driver.hpp"
+#include "Logger.hpp"
 
 Driver::Driver()
 	: m_parser{*this}, m_scanner{*this}, m_inputStream{&m_preprocessor}, m_filename{"<stdin>"}, m_position{&m_filename, 1, 1}
@@ -61,17 +62,13 @@ void Driver::step()
 	m_position += 1;
 }
 
-bool Driver::setInputFile(const char *filename)
+void Driver::setInputFile(const char *filename)
 {
 	m_filename = filename;
 	m_inputFile.open(m_filename);
-	if (m_inputFile.fail()) {
-		std::cerr << "Unable to open file for reading: " << m_filename.c_str() << '\n';
-		return false;
-	}
+	if (m_inputFile.fail())
+		FATAL("Unable to open file for reading: " << m_filename.c_str() << '\n');
 
 	m_position.initialize(&m_filename);
 	m_preprocessor.setInputFile(m_filename, &m_inputFile);
-
-	return true;
 }

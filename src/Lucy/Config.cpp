@@ -2,38 +2,36 @@
 #include <iostream>
 
 #include "Config.hpp"
+#include "Logger.hpp"
 
-bool Config::parse(unsigned argc, char **argv)
+void Config::parse(unsigned argc, char **argv)
 {
 	unsigned idx = 1;
+	const char *current = nullptr;
 
-	auto ensureArg = [&idx, argc]() -> bool
+	auto ensureArg = [&idx, argc, current]()
 	{
 		++idx;
-		if (idx == argc) {
-			std::cerr << "Missing argument\n";
-			return false;
-		}
-		return true;
+		if (idx == argc)
+			FATAL("Missing argument to option: " << current << '\n');
 	};
 
 	while (idx < argc) {
-		const char *s = argv[idx];
+		current = argv[idx];
 
-		if (strcmp(s, "--graphviz") == 0) {
-			if (!ensureArg())
-				return false;
-
+		if (strcmp(current, "--graphviz") == 0) {
+			ensureArg();
 			this->graphvizOutput = argv[idx];
+		} else if (strcmp(current, "--output") == 0 || strcmp(current, "-o") == 0) {
+			ensureArg();
+			this->logOutput = argv[idx];
 		} else {
-			if (s[0] == '-')
-				std::cerr << "Skipping unrecognized option: " << s << '\n';
+			if (current[0] == '-')
+				LOG(Logger::Pedantic, "Skipping unrecognized option: " << current << '\n');
 			else
-				inputFile = s;
+				this->inputFile = current;
 		}
 
 		++idx;
 	}
-
-	return true;
 }

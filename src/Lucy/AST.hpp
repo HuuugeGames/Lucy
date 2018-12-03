@@ -9,6 +9,7 @@
 
 #include "location.hh" //generated file
 #include "EnumHelpers.hpp"
+#include "Logger.hpp"
 #include "ValueType.hpp"
 
 namespace AST {
@@ -1555,17 +1556,12 @@ public:
 		if (!m_step)
 			return;
 
-		if (!m_step->isValue()) {
-			std::cerr << "Nontrival step expressions in for-loop not supported yet\n";
-			m_step->print(); std::cout << std::flush;
-			abort();
-		}
+		if (!m_step->isValue())
+			FATAL(location << " : Nontrival step expressions in for-loop not supported yet\n");
 
 		const Value *v = static_cast<Value *>(m_step.get());
-		if (v->valueType() != ValueType::Integer && v->valueType() != ValueType::Real) {
-			std::cerr << "Step expression in for loops need to be of numeric type\n";
-			abort();
-		}
+		if (v->valueType() != ValueType::Integer && v->valueType() != ValueType::Real)
+			FATAL(location << " : Step expression in for loops need to be of numeric type\n");
 	}
 
 	const Chunk & chunk() const { return *m_chunk; }

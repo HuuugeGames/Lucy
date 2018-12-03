@@ -87,8 +87,10 @@ int processFiles(const Config &cfg, std::vector <std::string> &files, git_reposi
 
 				if (j.state() == Job::State::Finished) {
 					printf("[Checking file: %s]\n", j.filename().c_str());
-					if (!j.output().empty())
+					if (!j.output().empty()) {
+						errCode |= LucyCheck;
 						printf("%s\n", j.output().c_str());
+					}
 
 					const int status = j.exitStatus();
 					if (WIFEXITED(status)) {

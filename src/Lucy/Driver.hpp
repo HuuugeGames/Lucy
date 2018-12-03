@@ -23,8 +23,8 @@ public:
 	void nextLine();
 	void step();
 
-	bool setInputFile(const char *filename);
-	bool setInputFile(const std::string &filename) { return setInputFile(filename.c_str()); }
+	void setInputFile(const char *filename);
+	void setInputFile(const std::string &filename) { setInputFile(filename.c_str()); }
 
 private:
 	Preprocessor m_preprocessor;

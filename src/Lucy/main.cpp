@@ -8,16 +8,17 @@
 int main(int argc, char **argv)
 {
 	std::ios_base::sync_with_stdio(false);
-	Config conf;
-	if (!conf.parse(argc, argv))
-		return 1;
 
 	Driver d;
+	Config conf;
 
-	if (!conf.inputFile.empty()) {
-		if (!d.setInputFile(conf.inputFile))
-			return 1;
-	}
+	conf.parse(argc, argv);
+
+	if (!conf.inputFile.empty())
+		d.setInputFile(conf.inputFile);
+
+	if (!conf.logOutput.empty())
+		Logger::setOutput(conf.logOutput);
 
 	if (d.parse() != 0)
 		return 1;

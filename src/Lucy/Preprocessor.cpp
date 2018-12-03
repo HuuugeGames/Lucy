@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iterator>
 
+#include "Logger.hpp"
 #include "Preprocessor.hpp"
 
 bool Preprocessor::preprocess()
@@ -104,10 +105,8 @@ bool Preprocessor::preprocess()
 					}
 				}
 
-				if (!endComment) {
-					std::cerr << "Error parsing long comment (EOF reached) started at: " << commentStart;
-					return false;
-				}
+				if (!endComment)
+					FATAL("Error parsing long comment (EOF reached) started at: " << commentStart);
 
 			} else {
 				//short comment

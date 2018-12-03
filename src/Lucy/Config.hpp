@@ -5,6 +5,7 @@
 struct Config {
 	std::string graphvizOutput;
 	std::string inputFile;
+	std::string logOutput;
 
-	bool parse(unsigned argc, char **argv);
+	void parse(unsigned argc, char **argv);
 };

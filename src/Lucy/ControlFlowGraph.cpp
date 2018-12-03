@@ -41,7 +41,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 	for (const auto &insn : chunk.children()) {
 		if (current->exitType != BasicBlock::ExitType::Fallthrough) {
-			std::cerr << insn->location() << " : dangling statements after block exit\n";
+			LOG(Logger::Error, insn->location() << " : dangling statements after block exit\n");
 			break;
 		}
 
@@ -204,8 +204,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				break;
 			}
 			default:
-				std::cerr << "Unhandled instruction type: " << toUnderlying(insn->type()) << '\n';
-				abort();
+				FATAL(insn->location() << " : Unhandled instruction type: " << toUnderlying(insn->type()) << '\n');
 		}
 	}
 
@@ -284,8 +283,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::Node &node)
 			break;
 		}
 		default:
-			std::cerr << "Unhandled node type: " << toUnderlying(node.type()) << '\n';
-			abort();
+			FATAL(node.location() << " : Unhandled node type: " << toUnderlying(node.type()) << '\n');
 	}
 }
 

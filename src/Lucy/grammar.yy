@@ -16,6 +16,7 @@ class Driver;
 %{
 
 #include "Driver.hpp"
+#include "Logger.hpp"
 #include "Scanner.hpp"
 
 #undef yylex
@@ -439,8 +440,7 @@ NIL {
 		} else if (v->valueType() == ValueType::Real) {
 			$$ = new AST::RealValue{-static_cast<const AST::RealValue *>(v)->value(), @$};
 		} else {
-			std::cerr << "Invalid ValueType for unary minus operator\n";
-			abort();
+			FATAL(@$ << " : Invalid ValueType for unary minus operator\n");
 		}
 
 		delete $neg;
@@ -516,6 +516,5 @@ LBRACKET expr[key] RBRACKET ASSIGN expr[val] {
 
 void yy::Parser::error(const location &loc, const std::string &msg)
 {
-	std::cerr << "Parse error: " << loc << " : " << msg << '\n';
-	std::exit(1);
+	FATAL("Parse error: " << loc << " : " << msg << '\n');
 }
