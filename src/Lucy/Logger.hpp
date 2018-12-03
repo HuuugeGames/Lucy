@@ -16,7 +16,6 @@ public:
 	static unsigned threshold() { return instance().m_threshold; }
 	static void setOutput(const std::string &filename);
 	static void setThreshold(unsigned threshold) { instance().m_threshold = threshold; }
-	//TODO set output
 
 private:
 	Logger() = default;

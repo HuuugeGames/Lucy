@@ -5,13 +5,14 @@
 #include "Driver.hpp"
 #include "Serial.hpp"
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
 	std::ios_base::sync_with_stdio(false);
 
 	Driver d;
 	Config conf;
 
+	conf.parse(getenv("LUCY_OPTIONS"));
 	conf.parse(argc, argv);
 
 	if (!conf.inputFile.empty())
