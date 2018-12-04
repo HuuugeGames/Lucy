@@ -59,6 +59,8 @@ void Config::parse(const std::vector <std::string_view> &argv)
 		if (current == "--graphviz") {
 			ensureArg();
 			this->graphvizOutput = argv[idx];
+		} else if (current == "-h" || current == "--help") {
+			usage();
 		} else if (current == "--output" || current == "-o") {
 			if (this->stdout)
 				FATAL("--output and --stdout are mutually exclusive\n");
@@ -79,4 +81,29 @@ void Config::parse(const std::vector <std::string_view> &argv)
 
 		++idx;
 	}
+}
+
+[[noreturn]] void Config::usage()
+{
+	std::cout <<
+R"___(Lucy (a.k.a. Analua), a static analyzer for Lua code.
+
+Usage:
+  $ ./Lucy [options] [file]
+
+If input file is not specified, read standard input.
+
+Options:
+  --graphviz <file>  write CFG description in dot language
+  -h, --help         usage information (this text)
+  --output <file>    write to file instead of stderr
+  --stdout           write to stdout instead of stderr
+
+If command line is not available, you can pass options in LUCY_OPTIONS
+environment variable. Example:
+
+  $ LUCY_OPTIONS="--stdout" ./Lucy
+
+)___";
+	std::exit(1);
 }

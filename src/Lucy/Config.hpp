@@ -12,4 +12,6 @@ struct Config {
 	void parse(unsigned argc, const char **argv);
 	void parse(const char *optString);
 	void parse(const std::vector <std::string_view> &argv);
+
+	[[noreturn]] void usage();
 };
