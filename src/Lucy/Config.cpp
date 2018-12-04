@@ -60,8 +60,16 @@ void Config::parse(const std::vector <std::string_view> &argv)
 			ensureArg();
 			this->graphvizOutput = argv[idx];
 		} else if (current == "--output" || current == "-o") {
+			if (this->stdout)
+				FATAL("--output and --stdout are mutually exclusive\n");
+
 			ensureArg();
 			this->logOutput = argv[idx];
+		} else if (current == "--stdout") {
+			if (!this->logOutput.empty())
+				FATAL("--output and --stdout are mutually exclusive\n");
+
+			this->stdout = true;
 		} else {
 			if (current[0] == '-')
 				LOG(Logger::Pedantic, "Skipping unrecognized option: " << current << '\n');

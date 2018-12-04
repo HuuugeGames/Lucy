@@ -15,6 +15,7 @@ public:
 	static std::ostream & log() { return *instance().m_output; }
 	static unsigned threshold() { return instance().m_threshold; }
 	static void setOutput(const std::string &filename);
+	static void setOutput(std::ostream &os) { instance().m_output = &os; }
 	static void setThreshold(unsigned threshold) { instance().m_threshold = threshold; }
 
 private:

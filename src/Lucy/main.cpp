@@ -21,6 +21,9 @@ int main(int argc, const char **argv)
 	if (!conf.logOutput.empty())
 		Logger::setOutput(conf.logOutput);
 
+	if (conf.stdout)
+		Logger::setOutput(std::cout);
+
 	if (d.parse() != 0)
 		return 1;
 
