@@ -36,23 +36,22 @@ void Scope::addStore(const AST::LValue &var)
 		return;
 
 	Store::Type storeType = Store::Type::Global;
-	Scope *currentScope = this;
-	bool found = false;
+	Scope *currentScope = this, *prevStoreScope = nullptr;
 	bool closure = false;
 
-	while (!found && currentScope) {
+	while (!prevStoreScope && currentScope) {
 		for (auto iter = currentScope->m_stores.crbegin(); iter != currentScope->m_stores.crend(); ++iter) {
 			if (iter->var().lvalueType() == AST::LValue::Type::Name && iter->var().name() == var.name()) {
 				storeType = iter->type();
 				if (closure && storeType == Store::Type::Local)
 					storeType = Store::Type::Upvalue;
 
-				found = true;
+				prevStoreScope = currentScope;
 				break;
 			}
 		}
 
-		if (!found) {
+		if (!prevStoreScope) {
 			for (const auto &param : currentScope->m_fnParams) {
 				if (var.name() == param) {
 					if (!closure)
@@ -60,7 +59,7 @@ void Scope::addStore(const AST::LValue &var)
 					else
 						storeType = Store::Type::Upvalue;
 
-					found = true;
+					prevStoreScope = currentScope;
 					break;
 				}
 			}
@@ -72,12 +71,18 @@ void Scope::addStore(const AST::LValue &var)
 		currentScope = next;
 	}
 
-	if (!found) {
+	if (!prevStoreScope || (prevStoreScope != this && storeType == Store::Type::Global)) {
 		Check type = Check::GlobalStore_FunctionScope;
+		if (!m_functionScope)
+			type = Check::GlobalStore_GlobalScope;
+
 		if (var.name() == "_")
 			type = Check::GlobalStore_Underscore;
+		else if (isupper(var.name()[0]))
+			type = Check::GlobalStore_UpperCase;
 
 		REPORT(type, var.location() << " : assignment to global name: " << var.name() << '\n');
 	}
+
 	m_stores.emplace_back(var, storeType);
 }
