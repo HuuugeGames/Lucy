@@ -56,7 +56,18 @@ void Config::parse(const std::vector <std::string_view> &argv)
 	while (idx != argv.size()) {
 		current = argv[idx];
 
-		if (current == "--graphviz") {
+		if (current == "--enable" || current == "--disable") {
+			ensureArg();
+			auto flag = Check::fromString(argv[idx]);
+			if (flag.has_value()) {
+				if (current == "--enable")
+					Logger::enable(*flag);
+				else
+					Logger::disable(*flag);
+			} else {
+				LOG(Logger::Pedantic, "Unknown flag: " << argv[idx] << '\n');
+			}
+		} else if (current == "--graphviz") {
 			ensureArg();
 			this->graphvizOutput = argv[idx];
 		} else if (current == "-h" || current == "--help") {

@@ -10,6 +10,8 @@ namespace AST {
 	class Node;
 }
 
+class Scope;
+
 struct BasicBlock {
 	enum class ExitType {
 		Conditional,
@@ -35,4 +37,6 @@ struct BasicBlock {
 	std::array <BasicBlock *, 2> nextBlock = {nullptr, nullptr};
 	std::vector <BasicBlock *> predecessors;
 	unsigned phase;
+
+	Scope *scope = nullptr;
 };

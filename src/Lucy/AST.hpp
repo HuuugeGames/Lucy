@@ -561,6 +561,7 @@ public:
 			m_exprList.reset(new ExprList{});
 	}
 
+	bool isLocal() const { return m_local; }
 	void setLocal(bool local) { m_local = local; }
 
 	const VarList & varList() const { return *m_varList; }

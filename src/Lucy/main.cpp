@@ -3,6 +3,7 @@
 #include "Config.hpp"
 #include "ControlFlowGraph.hpp"
 #include "Driver.hpp"
+#include "Scope.hpp"
 #include "Serial.hpp"
 
 int main(int argc, const char **argv)
@@ -27,7 +28,9 @@ int main(int argc, const char **argv)
 	if (d.parse() != 0)
 		return 1;
 
-	ControlFlowGraph cfg{*d.chunks()[0]};
+	Scope globalScope;
+	ControlFlowGraph cfg{*d.chunks()[0], globalScope};
+
 	if (!conf.graphvizOutput.empty())
 		cfg.graphvizDump(conf.graphvizOutput);
 
