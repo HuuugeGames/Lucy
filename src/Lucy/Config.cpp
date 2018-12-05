@@ -62,7 +62,7 @@ void Config::parse(const std::vector <std::string_view> &argv)
 		} else if (current == "-h" || current == "--help") {
 			usage();
 		} else if (current == "--output" || current == "-o") {
-			if (this->stdout)
+			if (this->writeToStdout)
 				FATAL("--output and --stdout are mutually exclusive\n");
 
 			ensureArg();
@@ -71,7 +71,7 @@ void Config::parse(const std::vector <std::string_view> &argv)
 			if (!this->logOutput.empty())
 				FATAL("--output and --stdout are mutually exclusive\n");
 
-			this->stdout = true;
+			this->writeToStdout = true;
 		} else {
 			if (current[0] == '-')
 				LOG(Logger::Pedantic, "Skipping unrecognized option: " << current << '\n');
