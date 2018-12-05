@@ -90,6 +90,11 @@ public:
 		return &m_data[m_idx[Idx]];
 	}
 
+	constexpr size_t size() const
+	{
+		return Tokens;
+	}
+
 private:
 	template <typename T>
 	constexpr void addString(size_t &cnt, size_t &idx, const T &str)

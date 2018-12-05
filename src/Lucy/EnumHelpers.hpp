@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstring>
+#include <optional>
+#include <string_view>
 #include <type_traits>
 #include "StringPack.hpp"
 
@@ -22,10 +25,26 @@ constexpr typename std::underlying_type <ET>::type & toUnderlyingRef(ET &et)
 			__VA_ARGS__ \
 		}; \
 		constexpr EnumName(EnumName ## __Internal value) : m_value{value} {} \
-		constexpr bool operator == (EnumName other) { return this->m_value == other.m_value; } \
-		constexpr bool operator != (EnumName other) { return this->m_value != other.m_value; } \
+		constexpr bool operator == (EnumName other) const { return this->m_value == other.m_value; } \
+		constexpr bool operator != (EnumName other) const { return this->m_value != other.m_value; } \
 		operator const char *() { return m_strPack[m_value]; } \
 		constexpr EnumType value() const { return m_value; } \
+		static std::optional<EnumName> fromString(const char *s) \
+		{ \
+			for (size_t i = 0; i < m_strPack.size(); ++i) { \
+				if (strcmp(m_strPack[i], s) == 0) \
+					return EnumName ## __Internal{static_cast<EnumType>(i)}; \
+			} \
+			return {}; \
+		} \
+		static std::optional<EnumName> fromString(const std::string_view &s) \
+		{ \
+			for (size_t i = 0; i < m_strPack.size(); ++i) { \
+				if (strncmp(m_strPack[i], s.data(), s.size()) == 0) \
+					return EnumName ## __Internal{static_cast<EnumType>(i)}; \
+			} \
+			return {}; \
+		} \
 	private: \
 		EnumName ## __Internal m_value; \
 		static constexpr auto m_strPack = \
