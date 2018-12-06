@@ -4,7 +4,6 @@
 #include "ControlFlowGraph.hpp"
 #include "Driver.hpp"
 #include "Scope.hpp"
-#include "Serial.hpp"
 
 int main(int argc, const char **argv)
 {
