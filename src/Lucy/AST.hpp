@@ -408,6 +408,8 @@ public:
 	const Node * tableExpr() const { return m_tableExpr.get(); }
 	const Node * keyExpr() const { return m_keyExpr.get(); }
 
+	const std::string & resolveName() const;
+
 	Type lvalueType() const { return m_type; }
 	Node::Type type() const override { return Node::Type::LValue; }
 
@@ -1281,6 +1283,8 @@ public:
 
 	bool isLocal() const { return m_local; }
 	void setLocal() { m_local = true; }
+
+	bool isMethod() const { return !m_method.empty(); }
 
 	std::string fullName() const
 	{

@@ -5,6 +5,9 @@
 Function::Function(const AST::Function &fnNode, Scope &scope)
 	: m_fnNode{fnNode}, m_fnScope{&scope, &m_fnScope}
 {
+	if (fnNode.isMethod())
+		m_fnScope.addFunctionParam("self");
+
 	for (const auto &param : fnNode.params().names())
 		m_fnScope.addFunctionParam(param.first);
 
