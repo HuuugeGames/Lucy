@@ -8,6 +8,8 @@
 #include "EnumHelpers.hpp"
 
 EnumClass(Check, uint32_t,
+	EmptyChunk,
+	EmptyFunction,
 	GlobalStore_FunctionScope,
 	GlobalStore_GlobalScope,
 	GlobalStore_Underscore,
@@ -59,7 +61,7 @@ private:
 #define REPORT(check, msg) \
 	do { \
 		if (Logger::dispatch(check)) \
-			Logger::log() << '[' << check << "] " << msg; \
+			Logger::log() << '[' << Check{check} << "] " << msg; \
 	} while (false)
 
 #define FATAL(msg) \

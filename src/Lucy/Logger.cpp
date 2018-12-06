@@ -4,6 +4,9 @@
 
 Logger::Logger()
 {
+	setFlag(Check::EmptyChunk);
+	unsetFlag(Check::EmptyFunction);
+
 	setFlag(Check::GlobalStore_FunctionScope);
 	setFlag(Check::GlobalStore_GlobalScope);
 	unsetFlag(Check::GlobalStore_Underscore);

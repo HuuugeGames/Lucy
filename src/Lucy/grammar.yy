@@ -101,7 +101,7 @@ last_statement {
 	$$ = $chunk_base;
 }
 | %empty {
-	$$ = nullptr;
+	$$ = new AST::Chunk{@$};
 }
 ;
 
@@ -333,7 +333,7 @@ block END {
 	$$ = $block;
 }
 | END {
-	$$ = nullptr;
+	$$ = new AST::Chunk{@$};
 }
 ;
 

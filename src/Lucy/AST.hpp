@@ -114,6 +114,8 @@ public:
 			append(s);
 	}
 
+	bool isEmpty() const { return m_children.empty(); }
+
 	void append(Node *n)
 	{
 		m_children.emplace_back(n);

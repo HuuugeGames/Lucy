@@ -76,6 +76,13 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 	auto entry = makeBB();
 	auto current = entry;
 
+	if (chunk.isEmpty()) {
+		if (ctx.currentScope->parent() == ctx.currentScope->functionScope())
+			REPORT(Check::EmptyFunction, chunk.location() << " : empty function definition\n");
+		else
+			REPORT(Check::EmptyChunk, chunk.location() << " : empty chunk of code\n");
+	}
+
 	for (const auto &insn : chunk.children()) {
 		if (current->exitType != BasicBlock::ExitType::Fallthrough) {
 			LOG(Logger::Error, insn->location() << " : dangling statements after block exit\n");
