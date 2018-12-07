@@ -5,8 +5,8 @@
 Function::Function(const AST::Function &fnNode, Scope &scope)
 	: m_fnNode{fnNode}, m_fnScope{&scope, &m_fnScope}
 {
-	if (!fnNode.isLocal() && !fnNode.isAnonymous() && !fnNode.isMethod() && scope.functionScope() == nullptr)
-		LOG(Check::GlobalFunctionDefinition, fnNode.name().location() << " : function definition in global scope: " << fnNode.fullName() << '\n');
+	if (!fnNode.isLocal() && !fnNode.isAnonymous() && !fnNode.isMethod() && !fnNode.isNested() && scope.functionScope() == nullptr)
+		REPORT(Check::GlobalFunctionDefinition, fnNode.name().location() << " : function definition in global scope: " << fnNode.fullName() << '\n');
 
 	if (fnNode.isMethod())
 		m_fnScope.addFunctionParam("self");

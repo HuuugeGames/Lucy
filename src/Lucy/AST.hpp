@@ -1277,9 +1277,11 @@ public:
 	}
 
 	bool isMethod() const { return !m_method.empty(); }
+	bool isNested() const { return m_name.size() > 1; }
 
 	void appendMethodName(std::string &&methodName, const yy::location &location)
 	{
+		m_method = std::move(methodName);
 		extendLocation(location);
 	}
 
@@ -1341,6 +1343,7 @@ public:
 	bool isAnonymous() const { return !m_name; }
 	bool isLocal() const { return m_local; }
 	bool isMethod() const { return m_name && m_name->isMethod(); }
+	bool isNested() const { return m_name && m_name->isNested(); }
 	const FunctionName & name() const { return *m_name; }
 
 	void setLocal() { m_local = true; }
