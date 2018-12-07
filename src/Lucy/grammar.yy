@@ -50,7 +50,7 @@ class Driver;
 %type <AST::TableCtor *> field_list field_list_base table_ctor
 %type <AST::Field *> field
 %type <AST::Function *> function function_body
-%type <AST::FunctionName> function_name function_name_base
+%type <AST::FunctionName *> function_name function_name_base
 
 %token <long> INT_VALUE
 %token <double> REAL_VALUE
@@ -171,7 +171,7 @@ var_list ASSIGN expr_list {
 	$$ = $function_body;
 }
 | LOCAL FUNCTION ID function_body {
-	$function_body->setName($ID);
+	$function_body->setName(new AST::FunctionName{std:move($ID), @ID});
 	$function_body->setLocal();
 	$$ = $function_body;
 }
@@ -193,17 +193,17 @@ function_name_base {
 }
 | function_name_base COLON ID {
 	$$ = $function_name_base;
-	$$.second = $ID;
+	$$->appendMethodName(std::move($ID), @$);
 }
 ;
 
 function_name_base :
 ID {
-	$$ = std::make_pair(std::vector <std::string>{$ID}, std::string{});
+	$$ = new AST::FunctionName{std::move($ID), @$};
 }
 | function_name_base[base] DOT ID {
-	$$ = std::move($base);
-	$$.first.emplace_back($ID);
+	$$ = $base;
+	$$->appendNamePart(std::move($ID), @$);
 }
 ;
 
