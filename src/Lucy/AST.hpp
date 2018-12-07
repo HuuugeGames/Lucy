@@ -1283,6 +1283,7 @@ public:
 		return *m_chunk;
 	}
 
+	bool isAnonymous() const { return m_name.empty(); }
 	bool isLocal() const { return m_local; }
 	void setLocal() { m_local = true; }
 
