@@ -34,6 +34,7 @@ public:
 		UnOp,
 		Break,
 		Return,
+		FunctionName,
 		Function,
 		If,
 		While,
@@ -113,6 +114,8 @@ public:
 		for (auto s : statements)
 			append(s);
 	}
+
+	bool isEmpty() const { return m_children.empty(); }
 
 	void append(Node *n)
 	{
@@ -1265,7 +1268,63 @@ private:
 	std::unique_ptr <ExprList> m_exprList;
 };
 
-using FunctionName = std::pair <std::vector <std::string>, std::string>;
+class FunctionName : public Node {
+public:
+	FunctionName(std::string &&base, const yy::location &location = yy::location{})
+		: Node{location}
+	{
+		m_name.emplace_back(std::move(base));
+	}
+
+	bool isMethod() const { return !m_method.empty(); }
+	bool isNested() const { return m_name.size() > 1; }
+
+	void appendMethodName(std::string &&methodName, const yy::location &location)
+	{
+		m_method = std::move(methodName);
+		extendLocation(location);
+	}
+
+	void appendNamePart(std::string &&namePart, const yy::location &location)
+	{
+		m_name.emplace_back(std::move(namePart));
+		extendLocation(location);
+	}
+
+	std::string fullName() const
+	{
+		std::string result = m_name[0];
+		for (auto iter = m_name.cbegin() + 1; iter != m_name.cend(); ++iter) {
+			result.push_back('.');
+			result += *iter;
+		}
+
+		if (!m_method.empty()) {
+			result.push_back(':');
+			result += m_method;
+		}
+
+		return result;
+	}
+
+	Node::Type type() const override { return Node::Type::FunctionName; }
+
+	std::unique_ptr <Node> clone() const override
+	{
+		return std::unique_ptr <FunctionName>{new FunctionName{*this}};
+	}
+
+private:
+	FunctionName(const FunctionName &other)
+		: Node{other.location()},
+		  m_name{other.m_name},
+		  m_method{other.m_method}
+	{
+	}
+
+	std::vector <std::string> m_name;
+	std::string m_method;
+};
 
 class Function : public Node {
 public:
@@ -1281,40 +1340,24 @@ public:
 		return *m_chunk;
 	}
 
+	bool isAnonymous() const { return !m_name; }
 	bool isLocal() const { return m_local; }
-	void setLocal() { m_local = true; }
+	bool isMethod() const { return m_name && m_name->isMethod(); }
+	bool isNested() const { return m_name && m_name->isNested(); }
+	const FunctionName & name() const { return *m_name; }
 
-	bool isMethod() const { return !m_method.empty(); }
+	void setLocal() { m_local = true; }
 
 	std::string fullName() const
 	{
-		if (m_name.empty())
+		if (!m_name)
 			return "<anonymous>";
-
-		std::string result = m_name[0];
-		for (auto iter = m_name.cbegin() + 1; iter != m_name.cend(); ++iter) {
-			result.push_back('.');
-			result += *iter;
-		}
-
-		if (!m_method.empty()) {
-			result.push_back(':');
-			result += m_method;
-		}
-
-		return result;
+		return m_name->fullName();
 	}
 
-	void setName(const FunctionName &name)
+	void setName(FunctionName *name)
 	{
-		m_name = name.first;
-		m_method = name.second;
-	}
-
-	void setName(const std::string &name)
-	{
-		m_name.clear();
-		m_name.push_back(name);
+		m_name.reset(name);
 	}
 
 	void print(unsigned indent = 0) const override
@@ -1325,17 +1368,10 @@ public:
 			std::cout << "local ";
 		std::cout << "function ";
 
-		if (!m_name.empty()) {
-			std::cout << m_name[0];
-			for (auto iter = m_name.cbegin() + 1; iter != m_name.cend(); ++iter)
-				std::cout << "." << *iter;
-
-			if (!m_method.empty())
-				std::cout << ":" << m_method;
-			std::cout << '\n';
-		} else {
+		if (m_name)
+			std::cout << m_name->fullName() << '\n';
+		else
 			std::cout << "<anonymous>\n";
-		}
 
 		do_indent(indent);
 		std::cout << "params:\n";
@@ -1362,10 +1398,10 @@ public:
 			os << "<b>local</b> ";
 		os << "<b>function</b> ";
 
-		if (m_name.empty())
-			os << "<i>&lt;anonymous&gt;</i>";
+		if (m_name)
+			os << m_name->fullName();
 		else
-			os << fullName();
+			os << "<i>&lt;anonymous&gt;</i>";
 		params().printCode(os);
 	}
 
@@ -1386,16 +1422,14 @@ public:
 private:
 	Function(const Function &other)
 		: Node{other.location()},
-		  m_name{other.m_name},
-		  m_method{other.m_method},
+		  m_name{other.m_name ? static_cast<FunctionName *>(other.m_name->clone().release()) : nullptr},
 		  m_params{other.m_params ? static_cast<ParamList *>(other.m_params->clone().release()) : nullptr},
 		  m_chunk{other.m_chunk ? static_cast<Chunk *>(other.m_chunk->clone().release()) : nullptr},
 		  m_local{other.m_local}
 	{
 	}
 
-	std::vector <std::string> m_name;
-	std::string m_method;
+	std::unique_ptr <FunctionName> m_name;
 	std::unique_ptr <ParamList> m_params;
 	std::unique_ptr <Chunk> m_chunk;
 	bool m_local;
@@ -1620,7 +1654,7 @@ public:
 	std::unique_ptr <BinOp> cloneCondition() const
 	{
 		if (!m_step)
-			return std::unique_ptr<BinOp>{new BinOp{BinOp::Type::LessEqual, new LValue{iterator()}, limitExpr().clone().release()}};
+			return std::unique_ptr <BinOp>{new BinOp{BinOp::Type::LessEqual, new LValue{iterator()}, limitExpr().clone().release()}};
 
 		auto binopType = [](auto &&v) {
 			if (v < 0)
@@ -1638,7 +1672,7 @@ public:
 		}
 
 		assert(op != BinOp::Type::_last);
-		return std::unique_ptr<BinOp>{new BinOp{op, new LValue{iterator()}, limitExpr().clone().release()}};
+		return std::unique_ptr <BinOp>{new BinOp{op, new LValue{iterator()}, limitExpr().clone().release()}};
 	}
 
 	std::unique_ptr <Assignment> cloneStepExpr() const
