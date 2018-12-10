@@ -15,7 +15,7 @@ add_executable(${PROJECT_NAME}
 	Logger.cpp
 	Preprocessor.cpp
 	Scope.cpp
-	Store.cpp
+	VarAccess.cpp
 
 	main.cpp
 )

@@ -269,7 +269,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::Assignment &assignmen
 			ctx.currentScope->addLocalStore(*lval);
 	} else {
 		for (const auto &lval : assignment.varList().vars())
-			ctx.currentScope->addStore(*lval);
+			ctx.currentScope->addVarAccess(*lval, VarAccess::Type::Write);
 	}
 }
 
@@ -299,11 +299,17 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::FunctionCall &fnCallN
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::LValue &lv)
 {
-	if (lv.lvalueType() != AST::LValue::Type::Name)
-		process(ctx, *lv.tableExpr());
-
-	if (lv.lvalueType() == AST::LValue::Type::Bracket)
-		process(ctx, *lv.keyExpr());
+	switch (lv.lvalueType()) {
+		case AST::LValue::Type::Name:
+			ctx.currentScope->addVarAccess(lv, VarAccess::Type::Read);
+			break;
+		case AST::LValue::Type::Bracket:
+			process(ctx, *lv.keyExpr());
+			[[fallthrough]]
+		case AST::LValue::Type::Dot:
+			process(ctx, *lv.tableExpr());
+			break;
+	}
 }
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::Node &node)
