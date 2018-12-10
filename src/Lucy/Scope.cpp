@@ -26,7 +26,7 @@ void Scope::addFunctionParam(const std::string &name)
 
 void Scope::addLocalStore(const AST::LValue &var)
 {
-	m_stores.emplace_back(var, Store::Type::Local);
+	m_stores.emplace_back(new Store{var, Store::Type::Local});
 }
 
 void Scope::addStore(const AST::LValue &var)
@@ -34,17 +34,19 @@ void Scope::addStore(const AST::LValue &var)
 	const std::string &storedName = var.resolveName();
 
 	Store::Type storeType = Store::Type::Global;
+	Store *origin = nullptr;
 	Scope *currentScope = this, *prevStoreScope = nullptr;
 	bool closure = false;
 
 	while (!prevStoreScope && currentScope) {
 		for (auto iter = currentScope->m_stores.crbegin(); iter != currentScope->m_stores.crend(); ++iter) {
-			if (iter->var().resolveName() == storedName) {
-				storeType = iter->type();
+			if ((*iter)->var().resolveName() == storedName) {
+				storeType = (*iter)->type();
 				if (closure && storeType == Store::Type::Local)
 					storeType = Store::Type::Upvalue;
 
 				prevStoreScope = currentScope;
+				origin = iter->get();
 				break;
 			}
 		}
@@ -82,5 +84,5 @@ void Scope::addStore(const AST::LValue &var)
 		REPORT(type, var.location() << " : assignment to global name: " << storedName << '\n');
 	}
 
-	m_stores.emplace_back(var, storeType);
+	m_stores.emplace_back(new Store{var, storeType, origin});
 }

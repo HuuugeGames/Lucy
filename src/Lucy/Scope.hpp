@@ -31,7 +31,7 @@ private:
 	Scope *m_parent = nullptr;
 	Scope *m_functionScope = nullptr;
 	std::vector <std::unique_ptr <Scope> > m_children;
+	std::vector <std::unique_ptr <Store> > m_stores;
 
 	std::vector <std::string> m_fnParams;
-	std::vector <Store> m_stores;
 };

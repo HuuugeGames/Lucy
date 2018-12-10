@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 namespace AST {
 	class LValue;
 }
@@ -14,7 +16,7 @@ public:
 		Local,
 	};
 
-	Store(const AST::LValue &var, Type type);
+	Store(const AST::LValue &var, Type type, Store *origin = nullptr);
 	Store(const Store &) = delete;
 	Store(Store &&) = default;
 	void operator = (const Store &) = delete;
@@ -25,4 +27,6 @@ public:
 private:
 	const AST::LValue &m_var;
 	Type m_type;
+	Store *m_origin;
+	std::vector <Store *> m_dependent;
 };
