@@ -42,12 +42,13 @@ private:
 	void process(CFGContext &ctx, const AST::Field &field);
 	void process(CFGContext &ctx, const AST::Function &fnNode);
 	void process(CFGContext &ctx, const AST::FunctionCall &fnCallNode);
-	void process(CFGContext &ctx, const AST::LValue &lv);
+	void process(CFGContext &ctx, const AST::LValue &lval);
 	void process(CFGContext &ctx, const AST::Node &node);
 	void process(CFGContext &ctx, const AST::TableCtor &table);
 	void process(CFGContext &ctx, const AST::VarList &varList);
 
 	void calcPredecessors();
+	void generateTriplets();
 	void prune();
 	void graphvizDump(std::ostream &os) const;
 

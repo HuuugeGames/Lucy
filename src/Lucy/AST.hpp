@@ -11,12 +11,13 @@
 #include "EnumHelpers.hpp"
 #include "Logger.hpp"
 #include "ValueType.hpp"
+#include "ValueVariant.hpp"
 
 namespace AST {
 
 class Node {
 public:
-	enum class Type {
+	EnumClass(Type, uint32_t,
 		Chunk,
 		ExprList,
 		NestedExpr,
@@ -41,8 +42,8 @@ public:
 		Repeat,
 		For,
 		ForEach,
-		_last,
-	};
+		_last
+	);
 
 	virtual void print(unsigned indent = 0) const
 	{
@@ -52,7 +53,7 @@ public:
 
 	virtual void printCode(std::ostream &os) const
 	{
-		os << "-- INVALID (" << static_cast<uint32_t>(type()) << ')';
+		os << "-- INVALID (" << type().value() << ')';
 	}
 
 	constexpr Node(const yy::location &location = yy::location{}) : m_location{location} {}
@@ -408,8 +409,8 @@ public:
 	}
 
 	const std::string & name() const { return m_name; }
-	const Node * tableExpr() const { return m_tableExpr.get(); }
-	const Node * keyExpr() const { return m_keyExpr.get(); }
+	const Node & tableExpr() const { return *m_tableExpr; }
+	const Node & keyExpr() const { return *m_keyExpr; }
 
 	const std::string & resolveName() const;
 
@@ -629,6 +630,7 @@ public:
 	Node::Type type() const override { return Type::Value; }
 
 	virtual ValueType valueType() const = 0;
+	virtual ValueVariant toValueVariant() const = 0;
 };
 
 class NilValue : public Value {
@@ -648,6 +650,7 @@ public:
 	}
 
 	ValueType valueType() const override { return ValueType::Nil; }
+	ValueVariant toValueVariant() const override { return nullptr; }
 
 	std::unique_ptr <Node> clone() const override
 	{
@@ -675,6 +678,7 @@ public:
 	}
 
 	ValueType valueType() const override { return ValueType::Boolean; }
+	ValueVariant toValueVariant() const override { return m_value; }
 
 	bool value() const { return m_value; }
 
@@ -712,6 +716,7 @@ public:
 	}
 
 	ValueType valueType() const override { return ValueType::String; }
+	ValueVariant toValueVariant() const override { return m_value; }
 
 	const std::string & value() const { return m_value; }
 
@@ -743,6 +748,7 @@ public:
 	ValueType valueType() const override { return ValueType::Integer; }
 
 	long value() const { return m_value; }
+	ValueVariant toValueVariant() const override { return m_value; }
 
 	std::unique_ptr <Node> clone() const override
 	{
@@ -772,6 +778,7 @@ public:
 	ValueType valueType() const override { return ValueType::Real; }
 
 	double value() const { return m_value; }
+	ValueVariant toValueVariant() const override { return m_value; }
 
 	std::unique_ptr <Node> clone() const override
 	{
@@ -1047,7 +1054,7 @@ private:
 
 class BinOp : public Node {
 public:
-	enum class Type {
+	enum class Type : unsigned {
 		Or,
 		And,
 		Equal,
@@ -1156,6 +1163,7 @@ public:
 		Negate,
 		Not,
 		Length,
+		_last
 	};
 
 	UnOp(Type t, Node *op, const yy::location &location = yy::location{})

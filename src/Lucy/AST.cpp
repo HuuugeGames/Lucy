@@ -15,7 +15,7 @@ const std::string & LValue::resolveName() const
 		return name();
 
 	if (m_tableExpr->type() != Node::Type::LValue) {
-		LOG(Logger::Warning, location() << " : nontrivial (" << toUnderlying(m_tableExpr->type()) << ") expression for table name\n");
+		LOG(Logger::Warning, location() << " : nontrivial (" << m_tableExpr->type() << ") expression for table name\n");
 		assert(m_tableExpr->type() == Node::Type::LValue);
 		return EmptyString;
 	}

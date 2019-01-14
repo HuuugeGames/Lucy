@@ -49,6 +49,7 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk, Scope &scope)
 
 	calcPredecessors();
 	prune();
+	generateTriplets();
 }
 
 ControlFlowGraph::~ControlFlowGraph() = default;
@@ -89,7 +90,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			break;
 		}
 
-		switch (insn->type()) {
+		switch (insn->type().value()) {
 			case AST::Node::Type::Break: {
 				auto breakNode = static_cast<const AST::Break *>(insn.get());
 				current->exitType = BasicBlock::ExitType::Break;
@@ -251,7 +252,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				break;
 			}
 			default:
-				FATAL(insn->location() << " : Unhandled instruction type: " << toUnderlying(insn->type()) << '\n');
+				FATAL(insn->location() << " : Unhandled instruction type: " << insn->type() << '\n');
 		}
 	}
 
@@ -297,17 +298,17 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::FunctionCall &fnCallN
 	process(ctx, fnCallNode.args());
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const AST::LValue &lv)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::LValue &lval)
 {
-	switch (lv.lvalueType()) {
+	switch (lval.lvalueType()) {
 		case AST::LValue::Type::Name:
-			ctx.currentScope->addVarAccess(lv, VarAccess::Type::Read);
+			ctx.currentScope->addVarAccess(lval, VarAccess::Type::Read);
 			break;
 		case AST::LValue::Type::Bracket:
-			process(ctx, *lv.keyExpr());
+			process(ctx, lval.keyExpr());
 			[[fallthrough]]
 		case AST::LValue::Type::Dot:
-			process(ctx, *lv.tableExpr());
+			process(ctx, lval.tableExpr());
 			break;
 	}
 }
@@ -317,7 +318,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::Node &node)
 	if (node.isValue() || node.type() == AST::Node::Type::Ellipsis)
 		return;
 
-	switch (node.type()) {
+	switch (node.type().value()) {
 		case AST::Node::Type::Function:
 			process(ctx, static_cast<const AST::Function &>(node));
 			break;
@@ -345,7 +346,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::Node &node)
 			break;
 		}
 		default:
-			FATAL(node.location() << " : Unhandled node type: " << toUnderlying(node.type()) << '\n');
+			FATAL(node.location() << " : Unhandled node type: " << node.type() << '\n');
 	}
 }
 
@@ -382,16 +383,31 @@ void ControlFlowGraph::calcPredecessors()
 	doCalcPredecessors(m_entry);
 }
 
+void ControlFlowGraph::generateTriplets()
+{
+	++m_walkPhase;
+
+	std::function <void (BasicBlock *)> doGenerateTriplets = [this, &doGenerateTriplets](BasicBlock *block)
+	{
+		if (!block || block->phase == m_walkPhase)
+			return;
+		block->phase = m_walkPhase;
+
+		block->generateTriplets();
+		for (BasicBlock *next : block->nextBlock)
+			doGenerateTriplets(next);
+	};
+
+	doGenerateTriplets(m_entry);
+}
+
 void ControlFlowGraph::prune()
 {
 	++m_walkPhase;
 
 	std::function <void (BasicBlock *)> doPrune = [this, &doPrune](BasicBlock *block)
 	{
-		if (!block)
-			return;
-
-		if (block->phase == m_walkPhase)
+		if (!block || block->phase == m_walkPhase)
 			return;
 		block->phase = m_walkPhase;
 
