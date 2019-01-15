@@ -7,7 +7,6 @@
 #include "BasicBlock.hpp"
 #include "Serial.hpp"
 
-class CFGContext;
 class Function;
 
 class ControlFlowGraph {
@@ -23,6 +22,8 @@ public:
 	void graphvizDump(const std::string &filename) const { graphvizDump(filename.c_str()); }
 
 private:
+	class CFGContext;
+
 	std::pair <BasicBlock *, BasicBlock *> process(CFGContext &ctx, const AST::Chunk &chunk);
 	void process(CFGContext &ctx, const AST::Assignment &assignment);
 	void process(CFGContext &ctx, const AST::ExprList &exprList);

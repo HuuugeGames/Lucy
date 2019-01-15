@@ -9,7 +9,7 @@
 #include "Scope.hpp"
 #include "Serial.hpp"
 
-struct CFGContext {
+struct ControlFlowGraph::CFGContext {
 	std::vector <std::pair <BasicBlock *, const AST::Break &> > breakBlocks;
 	std::vector <BasicBlock *> returnBlocks;
 	Scope *currentScope;

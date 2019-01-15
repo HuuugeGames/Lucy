@@ -245,6 +245,7 @@ public:
 	}
 
 	bool empty() const { return m_exprs.empty(); }
+	size_t size() const { return m_exprs.size(); }
 
 	const std::vector <std::unique_ptr <Node> > & exprs() const { return m_exprs; }
 

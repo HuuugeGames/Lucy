@@ -3,8 +3,14 @@
 
 #include "AST.hpp"
 #include "BasicBlock.hpp"
+#include "Fold.hpp"
 #include "RValue.hpp"
 #include "Triplet.hpp"
+
+struct BasicBlock::BBContext {
+	std::vector <RValue> stack;
+	unsigned tempCnt = 0;
+};
 
 BasicBlock::BasicBlock(UID id)
 	: label{std::string{"BB_"} + std::to_string(id)}
@@ -37,18 +43,13 @@ void BasicBlock::removePredecessor(BasicBlock *block)
 
 void BasicBlock::generateTriplets()
 {
-	std::vector <RValue> stack;
+	BBContext ctx;
 
 	for (const AST::Node *i : insn) {
-		switch (i->type().value()) {
-			case AST::Node::Type::Assignment: {
-				auto assignmentNode = static_cast<const AST::Assignment *>(i);
-				process(stack, *assignmentNode);
-				break;
-			}
-			default:
-				FATAL(i->location() << " : Unhandled instruction type: " << i->type() << '\n');
-		}
+		ctx.stack.clear();
+		ctx.tempCnt = 0;
+
+		process(ctx, *i);
 	}
 
 	std::cerr << "[triplets]\n";
@@ -57,88 +58,145 @@ void BasicBlock::generateTriplets()
 	std::cerr << "[/triplets]\n\n";
 }
 
-void BasicBlock::process(std::vector <RValue> &stack, const AST::Assignment &assignment)
+void BasicBlock::process(BBContext &ctx, const AST::Assignment &assignment)
 {
-	assert(stack.empty());
+	assert(ctx.stack.empty());
 
-	const auto &exprs = assignment.exprList().exprs();
+	const auto &exprList = assignment.exprList();
 	const auto &varList = assignment.varList().vars();
 
-	if (exprs.size() != varList.size())
-		FATAL(assignment.location() << " Assignments with differing number of left and right hand operands are currently unsupported\n");
+	ctx.tempCnt = 0;
+	for (size_t exprIdx = 0; exprIdx != exprList.size(); ++exprIdx) {
+		const auto &e = exprList.exprs()[exprIdx];
 
-	size_t cnt = 0;
-	for (const auto &e : exprs) {
-		process(stack, *e);
-		auto result = stack.back();
-		stack.pop_back();
+		process(ctx, *e);
 
-		auto tmp = RValue::getTemporary(cnt++);
-		tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, tmp, result});
-		stack.push_back(tmp);
+		if (any_of(e->type(), AST::Node::Type::FunctionCall, AST::Node::Type::MethodCall)) {
+			auto &fnCall = tripletCode.back();
+			long &fnMeta = std::get<long>(std::get<ValueVariant>(fnCall->operands[1].valueRef));
+
+			fnMeta = (fnMeta & ~0xffff);
+			if (exprIdx < exprList.size() - 1 && exprIdx < varList.size())
+				fnMeta |= 1;
+			else if (exprIdx == exprList.size() - 1 && exprIdx < varList.size())
+				fnMeta |= varList.size() - exprList.size() + 1;
+
+			const long resultsNeeded = fnMeta & 0xffff;
+			for (long i = 0; i != resultsNeeded; ++i) {
+				auto tmp = RValue::getTemporary(ctx.tempCnt++);
+				tripletCode.emplace_back(new Triplet{Triplet::Op::Pop, tmp});
+				ctx.stack.push_back(tmp);
+			}
+		} else {
+			auto result = ctx.stack.back();
+			ctx.stack.pop_back();
+
+			auto tmp = RValue::getTemporary(ctx.tempCnt++);
+			tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, tmp, result});
+			ctx.stack.push_back(tmp);
+		}
 	}
 
-	assert(stack.size() == exprs.size());
+	while (ctx.stack.size() > varList.size())
+		ctx.stack.pop_back();
+	while (ctx.stack.size() < varList.size())
+		ctx.stack.push_back(RValue::nil());
 
-	for (const auto &v : varList) {
-		process(stack, *v);
-	}
+	for (const auto &v : varList)
+		process(ctx, *v);
 
-	assert(stack.size() == exprs.size() * 2);
+	assert(ctx.stack.size() == varList.size() * 2);
 
-	for (size_t i = 0; i != exprs.size(); ++i)
-		tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, stack[exprs.size() + i], stack[i]});
+	for (size_t i = 0; i != varList.size(); ++i)
+		tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, ctx.stack[varList.size() + i], ctx.stack[i]});
 
-	stack.clear();
+	ctx.stack.clear();
 }
 
-void BasicBlock::process(std::vector <RValue> &stack, const AST::BinOp &binOp)
+void BasicBlock::process(BBContext &ctx, const AST::BinOp &binOp)
 {
-	process(stack, binOp.left());
-	auto lhs = stack.back();
-	stack.pop_back();
+	process(ctx, binOp.left());
+	auto lhs = ctx.stack.back();
+	ctx.stack.pop_back();
 
-	process(stack, binOp.right());
-	auto rhs = stack.back();
-	stack.pop_back();
+	process(ctx, binOp.right());
+	auto rhs = ctx.stack.back();
+	ctx.stack.pop_back();
 
 	tripletCode.emplace_back(new Triplet{static_cast<Triplet::Op>(binOp.binOpType()), lhs, rhs});
-	stack.push_back(tripletCode.back().get());
+	ctx.stack.push_back(tripletCode.back().get());
 }
 
-void BasicBlock::process(std::vector <RValue> &stack, const AST::LValue &lval)
+void BasicBlock::process(BBContext &ctx, const AST::ExprList &exprList)
+{
+	for (const auto &e : exprList.exprs()) {
+		process(ctx, *e);
+		auto result = ctx.stack.back();
+		ctx.stack.pop_back();
+
+		auto tmp = RValue::getTemporary(ctx.tempCnt++);
+		tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, tmp, result});
+		ctx.stack.push_back(tmp);
+	}
+}
+
+void BasicBlock::process(BBContext &ctx, const AST::FunctionCall &fnCallNode)
+{
+	const size_t stackBase = ctx.stack.size();
+
+	process(ctx, fnCallNode.args());
+	while (ctx.stack.size() != stackBase) {
+		tripletCode.emplace_back(new Triplet{Triplet::Op::Push, ctx.stack.back()});
+		ctx.stack.pop_back();
+	}
+
+	process(ctx, fnCallNode.functionExpr());
+	tripletCode.emplace_back(new Triplet{Triplet::Op::Call, ctx.stack.back(), ValueVariant{static_cast<long>(fnCallNode.args().size() << 16)}});
+	ctx.stack.pop_back();
+}
+
+void BasicBlock::process(BBContext &ctx, const AST::LValue &lval)
 {
 	if (lval.lvalueType() == AST::LValue::Type::Name) {
-		stack.push_back(&lval);
+		ctx.stack.push_back(&lval);
 		return;
 	}
 
-	process(stack, lval.tableExpr());
-	auto tableVar = stack.back();
-	stack.pop_back();
+	process(ctx, lval.tableExpr());
+	auto tableVar = ctx.stack.back();
+	ctx.stack.pop_back();
 
 	if (lval.lvalueType() == AST::LValue::Type::Dot) {
 		tripletCode.emplace_back(new Triplet{Triplet::Op::TableIndex, tableVar, ValueVariant{lval.name()}});
 	} else {
-		process(stack, lval.keyExpr());
-		tripletCode.emplace_back(new Triplet{Triplet::Op::TableIndex, tableVar, stack.back()});
-		stack.pop_back();
+		process(ctx, lval.keyExpr());
+		tripletCode.emplace_back(new Triplet{Triplet::Op::TableIndex, tableVar, ctx.stack.back()});
+		ctx.stack.pop_back();
 	}
 
-	stack.push_back(tripletCode.back().get());
+	ctx.stack.push_back(tripletCode.back().get());
 }
 
-void BasicBlock::process(std::vector <RValue> &stack, const AST::NestedExpr &nestedExpr)
+void BasicBlock::process(BBContext &ctx, const AST::MethodCall &methodCallNode)
 {
-	process(stack, nestedExpr.expr());
+	const size_t stackBase = ctx.stack.size();
+	//TODO
 }
 
-void BasicBlock::process(std::vector <RValue> &stack, const AST::Node &node)
+void BasicBlock::process(BBContext &ctx, const AST::NestedExpr &nestedExpr)
 {
-	#define SUBCASE(type) case AST::Node::Type::type: return process(stack, static_cast<const AST::type &>(node))
+	process(ctx, nestedExpr.expr());
+}
+
+void BasicBlock::process(BBContext &ctx, const AST::Node &node)
+{
+	#define SUBCASE(type) case AST::Node::Type::type: return process(ctx, static_cast<const AST::type &>(node))
 
 	switch (node.type().value()) {
+		SUBCASE(Assignment);
 		SUBCASE(BinOp);
+		SUBCASE(ExprList);
+		SUBCASE(FunctionCall);
 		SUBCASE(LValue);
 		SUBCASE(NestedExpr);
 		SUBCASE(UnOp);
@@ -149,7 +207,7 @@ void BasicBlock::process(std::vector <RValue> &stack, const AST::Node &node)
 	#undef SUBCASE
 }
 
-void BasicBlock::process(std::vector <RValue> &stack, const AST::UnOp &unOp)
+void BasicBlock::process(BBContext &ctx, const AST::UnOp &unOp)
 {
 	static const std::array <Triplet::Op, static_cast<unsigned>(AST::UnOp::Type::_last)> UnaryOpType {
 		Triplet::Op::UnaryNegate,
@@ -157,15 +215,15 @@ void BasicBlock::process(std::vector <RValue> &stack, const AST::UnOp &unOp)
 		Triplet::Op::UnaryLength,
 	};
 
-	process(stack, unOp.operand());
-	auto operand = stack.back();
-	stack.pop_back();
+	process(ctx, unOp.operand());
+	auto operand = ctx.stack.back();
+	ctx.stack.pop_back();
 
-	tripletCode.emplace_back(new Triplet{UnaryOpType[static_cast<unsigned>(unOp.unOpType())], RValue{operand}, RValue::nil()});
-	stack.push_back(tripletCode.back().get());
+	tripletCode.emplace_back(new Triplet{UnaryOpType[static_cast<unsigned>(unOp.unOpType())], RValue{operand}});
+	ctx.stack.push_back(tripletCode.back().get());
 }
 
-void BasicBlock::process(std::vector <RValue> &stack, const AST::Value &valueNode)
+void BasicBlock::process(BBContext &ctx, const AST::Value &valueNode)
 {
-	stack.push_back(valueNode.toValueVariant());
+	ctx.stack.push_back(valueNode.toValueVariant());
 }

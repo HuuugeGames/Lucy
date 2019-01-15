@@ -44,11 +44,16 @@ struct BasicBlock {
 	Scope *scope = nullptr;
 
 private:
-	void process(std::vector <RValue> &stack, const AST::Assignment &assignment);
-	void process(std::vector <RValue> &stack, const AST::BinOp &binOp);
-	void process(std::vector <RValue> &stack, const AST::LValue &lval);
-	void process(std::vector <RValue> &stack, const AST::NestedExpr &nestedExpr);
-	void process(std::vector <RValue> &stack, const AST::Node &node);
-	void process(std::vector <RValue> &stack, const AST::UnOp &binOp);
-	void process(std::vector <RValue> &stack, const AST::Value &valueNode);
+	class BBContext;
+
+	void process(BBContext &ctx, const AST::Assignment &assignment);
+	void process(BBContext &ctx, const AST::BinOp &binOp);
+	void process(BBContext &ctx, const AST::ExprList &exprList);
+	void process(BBContext &ctx, const AST::FunctionCall &fnCallNode);
+	void process(BBContext &ctx, const AST::LValue &lval);
+	void process(BBContext &ctx, const AST::MethodCall &methodCallNode);
+	void process(BBContext &ctx, const AST::NestedExpr &nestedExpr);
+	void process(BBContext &ctx, const AST::Node &node);
+	void process(BBContext &ctx, const AST::UnOp &binOp);
+	void process(BBContext &ctx, const AST::Value &valueNode);
 };

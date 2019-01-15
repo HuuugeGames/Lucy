@@ -30,6 +30,9 @@ struct Triplet {
 
 		Assign,
 		TableIndex,
+		Push,
+		Pop,
+		Call,
 	};
 
 	Op operation;

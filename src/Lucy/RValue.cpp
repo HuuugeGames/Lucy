@@ -6,7 +6,7 @@
 std::ostream & operator << (std::ostream &os, const RValue &rval)
 {
 	switch (rval.valueRef.index()) {
-		case 0:
+		case RValue::Type::Immediate:
 			std::visit([&os](auto &&arg) {
 				using T = std::decay_t<decltype(arg)>;
 				if constexpr(std::is_same_v<T, nullptr_t>)
@@ -15,16 +15,16 @@ std::ostream & operator << (std::ostream &os, const RValue &rval)
 					os << std::quoted(arg);
 				else
 					os << arg;
-			}, std::get<0>(rval.valueRef));
+			}, std::get<RValue::Type::Immediate>(rval.valueRef));
 			break;
-		case 1: {
-			auto lval = std::get<1>(rval.valueRef);
+		case RValue::Type::LValue: {
+			auto lval = std::get<RValue::Type::LValue>(rval.valueRef);
 			assert(lval->lvalueType() == AST::LValue::Type::Name);
 			os << lval->name();
 			break;
 		}
-		case 2:
-			os << "tmp_0x" << std::get<2>(rval.valueRef);
+		case RValue::Type::Temporary:
+			os << "tmp_0x" << std::get<RValue::Type::Temporary>(rval.valueRef);
 			break;
 	}
 
