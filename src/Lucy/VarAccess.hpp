@@ -2,9 +2,7 @@
 
 #include <vector>
 
-namespace AST {
-	class LValue;
-}
+#include "AST_fwd.hpp"
 
 class Scope;
 

@@ -3,22 +3,9 @@
 #include <memory>
 #include <vector>
 
+#include "AST_fwd.hpp"
 #include "BasicBlock.hpp"
 #include "Serial.hpp"
-
-namespace AST {
-	class Assignment;
-	class Chunk;
-	class ExprList;
-	class Field;
-	class Function;
-	class FunctionCall;
-	class ForEach;
-	class LValue;
-	class Node;
-	class TableCtor;
-	class VarList;
-}
 
 class CFGContext;
 class Function;

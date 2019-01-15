@@ -2,11 +2,8 @@
 
 #include <memory>
 
+#include "AST_fwd.hpp"
 #include "Scope.hpp"
-
-namespace AST {
-	class Function;
-}
 
 class ControlFlowGraph;
 

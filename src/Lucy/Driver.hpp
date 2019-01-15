@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 
-#include "AST.hpp"
+#include "AST_fwd.hpp"
 #include "Preprocessor.hpp"
 #include "Scanner.hpp"
 

@@ -5,18 +5,9 @@
 #include <string>
 #include <vector>
 
+#include "AST_fwd.hpp"
 #include "RValue.hpp"
 #include "Serial.hpp"
-
-namespace AST {
-	class Assignment;
-	class BinOp;
-	class LValue;
-	class NestedExpr;
-	class Node;
-	class UnOp;
-	class Value;
-}
 
 class Scope;
 class Triplet;

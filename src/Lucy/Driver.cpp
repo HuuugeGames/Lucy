@@ -1,5 +1,6 @@
 #include <cstring>
 
+#include "AST.hpp"
 #include "Driver.hpp"
 #include "Logger.hpp"
 
