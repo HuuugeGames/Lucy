@@ -8,6 +8,7 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	if (!fnNode.isLocal() && !fnNode.isAnonymous() && !fnNode.isMethod() && !fnNode.isNested() && scope.functionScope() == nullptr)
 		REPORT(Check::GlobalFunctionDefinition, fnNode.name().location() << " : function definition in global scope: " << fnNode.fullName() << '\n');
 
+	//TODO add check for param named "self"
 	if (fnNode.isMethod())
 		m_fnScope.addFunctionParam("self");
 

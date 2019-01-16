@@ -140,6 +140,15 @@ void BasicBlock::process(BBContext &ctx, const AST::ExprList &exprList)
 	}
 }
 
+void BasicBlock::process(BBContext &ctx, const AST::Function &fnNode)
+{
+	assert(fnNode.isAnonymous());
+
+	auto tmp = RValue::getTemporary(ctx.tempCnt++);
+	tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, tmp, ValueVariant{&fnNode}});
+	ctx.stack.push_back(tmp);
+}
+
 void BasicBlock::process(BBContext &ctx, const AST::FunctionCall &fnCallNode)
 {
 	const size_t stackBase = ctx.stack.size();
@@ -196,6 +205,7 @@ void BasicBlock::process(BBContext &ctx, const AST::Node &node)
 		SUBCASE(Assignment);
 		SUBCASE(BinOp);
 		SUBCASE(ExprList);
+		SUBCASE(Function);
 		SUBCASE(FunctionCall);
 		SUBCASE(LValue);
 		SUBCASE(NestedExpr);

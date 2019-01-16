@@ -41,6 +41,7 @@ private:
 	void graphvizDump(std::ostream &os) const;
 
 	const AST::Chunk & rewrite(CFGContext &ctx, const AST::ForEach &forEach);
+	const AST::Assignment & rewrite(CFGContext &ctx, const AST::Function &fnNode);
 
 	Serial m_blockSerial;
 	std::vector <std::unique_ptr <BasicBlock> > m_blocks;

@@ -100,7 +100,12 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			case AST::Node::Type::Function: {
 				auto fnNode = static_cast<const AST::Function *>(insn.get());
 				process(ctx, *fnNode);
-				current->insn.push_back(insn.get());
+				if (!fnNode->isAnonymous()) {
+					const auto &assignFn = rewrite(ctx, *fnNode);
+					current->insn.push_back(&assignFn);
+				} else {
+					current->insn.push_back(insn.get());
+				}
 				break;
 			}
 			case AST::Node::Type::Assignment: {
@@ -508,6 +513,29 @@ const AST::Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::ForEach
 
 	loopChunk->append(forEach.cloneChunk().release());
 
+	return *result;
+}
+
+const AST::Assignment & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::Function &fnNode)
+{
+	assert(!fnNode.isAnonymous());
+
+	//TODO methods
+	const auto &fnName = fnNode.name();
+	const auto &nameParts = fnName.nameParts();
+	AST::LValue *nameLval = new AST::LValue{nameParts[0]};
+
+	for (unsigned i = 1; i != nameParts.size(); ++i)
+		nameLval = new AST::LValue{nameLval, nameParts[i]};
+
+	AST::Function *anonymizedFn = static_cast<AST::Function *>(fnNode.clone().release());
+	anonymizedFn->clearName();
+
+	AST::Assignment *result = new AST::Assignment{nameLval, anonymizedFn};
+	if (fnNode.isLocal())
+		result->setLocal(true);
+
+	m_additionalNodes.emplace_back(result);
 	return *result;
 }
 

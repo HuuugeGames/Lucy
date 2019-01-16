@@ -49,6 +49,7 @@ private:
 	void process(BBContext &ctx, const AST::Assignment &assignment);
 	void process(BBContext &ctx, const AST::BinOp &binOp);
 	void process(BBContext &ctx, const AST::ExprList &exprList);
+	void process(BBContext &ctx, const AST::Function &fnNode);
 	void process(BBContext &ctx, const AST::FunctionCall &fnCallNode);
 	void process(BBContext &ctx, const AST::LValue &lval);
 	void process(BBContext &ctx, const AST::MethodCall &methodCallNode);

@@ -454,6 +454,12 @@ class VarList : public Node {
 public:
 	VarList(const yy::location &location = yy::location{}) : Node{location} {}
 
+	VarList(std::initializer_list <LValue *> vars, const yy::location &location = yy::location{}) : Node{location}
+	{
+		for (auto v : vars)
+			append(v);
+	}
+
 	VarList(std::initializer_list <const char *> varNames, const yy::location &location = yy::location{}) : Node{location}
 	{
 		for (auto varName : varNames)
@@ -533,6 +539,13 @@ public:
 
 class Assignment : public Node {
 public:
+	Assignment(AST::LValue *lval, Node *expr, const yy::location &location = yy::location{})
+		: Node{location}, m_varList{new VarList{}}, m_exprList{new ExprList{}}, m_local{false}
+	{
+		m_varList->append(lval);
+		m_exprList->append(expr);
+	}
+
 	Assignment(const std::string &name, Node *expr, const yy::location &location = yy::location{})
 		: Node{location}, m_varList{new VarList{}}, m_exprList{new ExprList{}}, m_local{false}
 	{
@@ -1287,6 +1300,8 @@ public:
 
 	bool isMethod() const { return !m_method.empty(); }
 	bool isNested() const { return m_name.size() > 1; }
+	const std::vector <std::string> & nameParts() const { return m_name; }
+	const std::string & method() const { return m_method; }
 
 	void appendMethodName(std::string &&methodName, const yy::location &location)
 	{
@@ -1362,6 +1377,11 @@ public:
 		if (!m_name)
 			return "<anonymous>";
 		return m_name->fullName();
+	}
+
+	void clearName()
+	{
+		m_name.reset();
 	}
 
 	void setName(FunctionName *name)
