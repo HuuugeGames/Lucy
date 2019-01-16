@@ -1,12 +1,19 @@
 #pragma once
 
-#include <iosfwd>
 #include <string>
 #include <variant>
+#include "AST_fwd.hpp"
 
-namespace AST {
-	class Function;
-}
+class RValue;
 
-//TODO Table
-using ValueVariant = std::variant <std::nullptr_t, bool, long, double, std::string, const AST::Function *>;
+using TableReference = std::pair <const RValue *, const RValue *>;
+
+using ValueVariant = std::variant <
+	std::nullptr_t,
+	bool,
+	long,
+	double,
+	std::string,
+	const AST::Function *,
+	TableReference
+>;

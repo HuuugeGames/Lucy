@@ -1,15 +1,13 @@
 #include <iostream>
 #include "AST.hpp"
+#include "Fold.hpp"
 #include "Triplet.hpp"
 
 std::ostream & operator << (std::ostream &os, const Triplet &t)
 {
-	if (t.operation == Triplet::Op::Assign) {
+	if (any_of(t.operation, Triplet::Op::Assign, Triplet::Op::TableAssign)) {
 		os << t.operands[0] << " = " << t.operands[1];
-		return os;
-	}
-
-	if (static_cast<unsigned>(t.operation) < static_cast<unsigned>(AST::BinOp::Type::_last)) {
+	} else if (static_cast<unsigned>(t.operation) < static_cast<unsigned>(AST::BinOp::Type::_last)) {
 		os << "tmp_0x" << &t << " = "
 			<< t.operands[0]
 			<< ' ' << AST::BinOp::toString(static_cast<AST::BinOp::Type>(t.operation)) << ' '

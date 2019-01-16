@@ -107,8 +107,17 @@ void BasicBlock::process(BBContext &ctx, const AST::Assignment &assignment)
 
 	assert(ctx.stack.size() == varList.size() * 2);
 
-	for (size_t i = 0; i != varList.size(); ++i)
-		tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, ctx.stack[varList.size() + i], ctx.stack[i]});
+	for (size_t i = 0; i != varList.size(); ++i) {
+		const auto &lhs = ctx.stack[varList.size() + i];
+		const auto &rhs = ctx.stack[i];
+
+		if (auto t = std::get_if<RValue::Type::Temporary>(&lhs.valueRef); t && (*t)->operation == Triplet::Op::TableIndex) {
+			auto tableRef = new Triplet{Triplet::Op::TableAssign, ValueVariant{TableReference{&(*t)->operands[0], &(*t)->operands[1]}}, rhs};
+			tripletCode.emplace_back(tableRef);
+		} else {
+			tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, lhs, rhs});
+		}
+	}
 
 	ctx.stack.clear();
 }

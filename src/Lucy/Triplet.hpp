@@ -29,6 +29,7 @@ struct Triplet {
 		UnaryLength,
 
 		Assign,
+		TableAssign,
 		TableIndex,
 		Push,
 		Pop,
