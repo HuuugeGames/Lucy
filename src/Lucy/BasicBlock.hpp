@@ -52,7 +52,6 @@ private:
 	void process(BBContext &ctx, const AST::Function &fnNode);
 	void process(BBContext &ctx, const AST::FunctionCall &fnCallNode);
 	void process(BBContext &ctx, const AST::LValue &lval);
-	void process(BBContext &ctx, const AST::MethodCall &methodCallNode);
 	void process(BBContext &ctx, const AST::NestedExpr &nestedExpr);
 	void process(BBContext &ctx, const AST::Node &node);
 	void process(BBContext &ctx, const AST::UnOp &binOp);

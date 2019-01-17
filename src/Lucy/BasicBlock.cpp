@@ -195,12 +195,6 @@ void BasicBlock::process(BBContext &ctx, const AST::LValue &lval)
 	ctx.stack.push_back(tripletCode.back().get());
 }
 
-void BasicBlock::process(BBContext &ctx, const AST::MethodCall &methodCallNode)
-{
-	const size_t stackBase = ctx.stack.size();
-	//TODO
-}
-
 void BasicBlock::process(BBContext &ctx, const AST::NestedExpr &nestedExpr)
 {
 	process(ctx, nestedExpr.expr());

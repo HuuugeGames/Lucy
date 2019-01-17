@@ -114,8 +114,14 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				current->insn.push_back(insn.get());
 				break;
 			}
-			case AST::Node::Type::FunctionCall:
 			case AST::Node::Type::MethodCall: {
+				auto methodCallNode = static_cast<const AST::MethodCall *>(insn.get());
+				process(ctx, *methodCallNode);
+				const auto &fnCallNode = rewrite(ctx, *methodCallNode);
+				current->insn.push_back(&fnCallNode);
+				break;
+			}
+			case AST::Node::Type::FunctionCall: {
 				auto fnCallNode = static_cast<const AST::FunctionCall *>(insn.get());
 				process(ctx, *fnCallNode);
 				current->insn.push_back(insn.get());
@@ -536,6 +542,13 @@ const AST::Assignment & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::Fu
 	if (fnNode.isLocal())
 		result->setLocal(true);
 
+	m_additionalNodes.emplace_back(result);
+	return *result;
+}
+
+const AST::FunctionCall & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::MethodCall &callNode)
+{
+	AST::FunctionCall *result = callNode.cloneAsFunctionCall().release();
 	m_additionalNodes.emplace_back(result);
 	return *result;
 }

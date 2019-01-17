@@ -42,6 +42,7 @@ private:
 
 	const AST::Chunk & rewrite(CFGContext &ctx, const AST::ForEach &forEach);
 	const AST::Assignment & rewrite(CFGContext &ctx, const AST::Function &fnNode);
+	const AST::FunctionCall & rewrite(CFGContext &ctx, const AST::MethodCall &callNode);
 
 	Serial m_blockSerial;
 	std::vector <std::unique_ptr <BasicBlock> > m_blocks;

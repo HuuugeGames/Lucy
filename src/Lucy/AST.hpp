@@ -854,6 +854,11 @@ protected:
 	{
 	}
 
+	std::unique_ptr <Node> cloneCallExpr() const
+	{
+		return m_functionExpr->clone();
+	}
+
 private:
 	std::unique_ptr <Node> m_functionExpr;
 	std::unique_ptr <ExprList> m_args;
@@ -877,9 +882,9 @@ public:
 		do_indent(indent);
 		std::cout << "Method call:\n";
 		functionExpr().print(indent + 1);
-		do_indent(indent);
+		do_indent(indent + 1);
 		std::cout << "Method name: " << m_methodName << '\n';
-		args().print(indent + 1);
+		args().print(indent + 2);
 	}
 
 	void printCode(std::ostream &os) const override
@@ -902,6 +907,15 @@ public:
 	std::unique_ptr <Node> clone() const override
 	{
 		return std::unique_ptr <MethodCall>{new MethodCall{*this}};
+	}
+
+	std::unique_ptr <FunctionCall> cloneAsFunctionCall() const
+	{
+		LValue *fnCallExpr = new LValue{cloneCallExpr().release(), m_methodName};
+		ExprList *methodArgs = new ExprList{cloneCallExpr().release()};
+		for (const auto &e : args().exprs())
+			methodArgs->append(e->clone().release());
+		return std::make_unique<FunctionCall>(fnCallExpr, methodArgs, location());
 	}
 
 private:
