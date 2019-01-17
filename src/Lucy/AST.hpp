@@ -154,6 +154,7 @@ private:
 };
 
 class ParamList : public Node {
+	friend class Function;
 public:
 	static const ParamList Empty;
 
@@ -1381,6 +1382,11 @@ public:
 
 	void clearName()
 	{
+		if (m_name->isMethod()) {
+			if (!m_params)
+				m_params = std::make_unique<ParamList>();
+			m_params->m_names.insert(m_params->m_names.begin(), std::make_pair("self", yy::location{}));
+		}
 		m_name.reset();
 	}
 

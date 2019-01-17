@@ -520,13 +520,14 @@ const AST::Assignment & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::Fu
 {
 	assert(!fnNode.isAnonymous());
 
-	//TODO methods
 	const auto &fnName = fnNode.name();
 	const auto &nameParts = fnName.nameParts();
 	AST::LValue *nameLval = new AST::LValue{nameParts[0]};
 
 	for (unsigned i = 1; i != nameParts.size(); ++i)
 		nameLval = new AST::LValue{nameLval, nameParts[i]};
+	if (fnName.isMethod())
+		nameLval = new AST::LValue{nameLval, fnName.method()};
 
 	AST::Function *anonymizedFn = static_cast<AST::Function *>(fnNode.clone().release());
 	anonymizedFn->clearName();
