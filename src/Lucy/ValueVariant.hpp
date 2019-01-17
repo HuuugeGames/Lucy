@@ -7,6 +7,7 @@
 class RValue;
 
 using TableReference = std::pair <const RValue *, const RValue *>;
+using ResultPack = void *;
 
 using ValueVariant = std::variant <
 	std::nullptr_t,
@@ -15,5 +16,6 @@ using ValueVariant = std::variant <
 	double,
 	std::string,
 	const AST::Function *,
-	TableReference
+	TableReference,
+	ResultPack
 >;

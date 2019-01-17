@@ -34,6 +34,7 @@ struct Triplet {
 		Push,
 		Pop,
 		Call,
+		CallUnknownResults,
 	};
 
 	Op operation;

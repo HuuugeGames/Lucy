@@ -21,6 +21,8 @@ std::ostream & operator << (std::ostream &os, const Triplet &t)
 	} else if (t.operation == Triplet::Op::Call) {
 		const long argResultCnt = std::get<long>(std::get<ValueVariant>(t.operands[1].valueRef));
 		os << "call " << t.operands[0] << ' ' << ((argResultCnt >> 16) & 0xffff) << ' ' << (argResultCnt & 0xffff);
+	} else if (t.operation == Triplet::Op::CallUnknownResults) {
+		os << "call_varres " << t.operands[0] << ' ' << t.operands[1];
 	} else {
 		switch (t.operation) {
 			case Triplet::Op::UnaryNegate: os << '-'; break;

@@ -3,12 +3,12 @@
 
 #include "AST.hpp"
 #include "BasicBlock.hpp"
-#include "Fold.hpp"
 #include "RValue.hpp"
 #include "Triplet.hpp"
 
 struct BasicBlock::BBContext {
 	std::vector <RValue> stack;
+	std::vector <unsigned> requiredResults;
 	unsigned tempCnt = 0;
 };
 
@@ -49,7 +49,9 @@ void BasicBlock::generateTriplets()
 		ctx.stack.clear();
 		ctx.tempCnt = 0;
 
+		ctx.requiredResults.push_back(0);
 		process(ctx, *i);
+		ctx.requiredResults.pop_back();
 	}
 
 	std::cerr << "[triplets]\n";
@@ -69,25 +71,17 @@ void BasicBlock::process(BBContext &ctx, const AST::Assignment &assignment)
 	for (size_t exprIdx = 0; exprIdx != exprList.size(); ++exprIdx) {
 		const auto &e = exprList.exprs()[exprIdx];
 
+		long resultsNeeded = 0;
+		if (exprIdx < exprList.size() - 1 && exprIdx < varList.size())
+			resultsNeeded = 1;
+		else if (exprIdx == exprList.size() - 1 && exprIdx < varList.size())
+			resultsNeeded = varList.size() - exprList.size() + 1;
+
+		ctx.requiredResults.push_back(resultsNeeded);
 		process(ctx, *e);
+		ctx.requiredResults.pop_back();
 
-		if (any_of(e->type(), AST::Node::Type::FunctionCall, AST::Node::Type::MethodCall)) {
-			auto &fnCall = tripletCode.back();
-			long &fnMeta = std::get<long>(std::get<ValueVariant>(fnCall->operands[1].valueRef));
-
-			fnMeta = (fnMeta & ~0xffff);
-			if (exprIdx < exprList.size() - 1 && exprIdx < varList.size())
-				fnMeta |= 1;
-			else if (exprIdx == exprList.size() - 1 && exprIdx < varList.size())
-				fnMeta |= varList.size() - exprList.size() + 1;
-
-			const long resultsNeeded = fnMeta & 0xffff;
-			for (long i = 0; i != resultsNeeded; ++i) {
-				auto tmp = RValue::getTemporary(ctx.tempCnt++);
-				tripletCode.emplace_back(new Triplet{Triplet::Op::Pop, tmp});
-				ctx.stack.push_back(tmp);
-			}
-		} else {
+		if (e->type() != AST::Node::Type::FunctionCall) {
 			auto result = ctx.stack.back();
 			ctx.stack.pop_back();
 
@@ -102,8 +96,11 @@ void BasicBlock::process(BBContext &ctx, const AST::Assignment &assignment)
 	while (ctx.stack.size() < varList.size())
 		ctx.stack.push_back(RValue::nil());
 
-	for (const auto &v : varList)
+	for (const auto &v : varList) {
+		ctx.requiredResults.push_back(1);
 		process(ctx, *v);
+		ctx.requiredResults.pop_back();
+	}
 
 	assert(ctx.stack.size() == varList.size() * 2);
 
@@ -124,11 +121,13 @@ void BasicBlock::process(BBContext &ctx, const AST::Assignment &assignment)
 
 void BasicBlock::process(BBContext &ctx, const AST::BinOp &binOp)
 {
+	ctx.requiredResults.push_back(1);
 	process(ctx, binOp.left());
 	auto lhs = ctx.stack.back();
 	ctx.stack.pop_back();
 
 	process(ctx, binOp.right());
+	ctx.requiredResults.pop_back();
 	auto rhs = ctx.stack.back();
 	ctx.stack.pop_back();
 
@@ -138,8 +137,18 @@ void BasicBlock::process(BBContext &ctx, const AST::BinOp &binOp)
 
 void BasicBlock::process(BBContext &ctx, const AST::ExprList &exprList)
 {
-	for (const auto &e : exprList.exprs()) {
+	const auto &exprs = exprList.exprs();
+
+	for (unsigned i = 0; i != exprs.size(); ++i) {
+		const auto &e = exprs[i];
+
+		if (i != exprs.size() - 1)
+			ctx.requiredResults.push_back(1);
+		else
+			ctx.requiredResults.push_back(std::numeric_limits<unsigned>::max());
 		process(ctx, *e);
+		ctx.requiredResults.pop_back();
+
 		auto result = ctx.stack.back();
 		ctx.stack.pop_back();
 
@@ -168,9 +177,38 @@ void BasicBlock::process(BBContext &ctx, const AST::FunctionCall &fnCallNode)
 		ctx.stack.pop_back();
 	}
 
+	ctx.requiredResults.push_back(1);
 	process(ctx, fnCallNode.functionExpr());
-	tripletCode.emplace_back(new Triplet{Triplet::Op::Call, ctx.stack.back(), ValueVariant{static_cast<long>(fnCallNode.args().size() << 16)}});
-	ctx.stack.pop_back();
+	ctx.requiredResults.pop_back();
+
+	const long requiredArgs = fnCallNode.args().size();
+
+	bool knownResultCnt = true;
+	long requiredResults = 0;
+	if (ctx.requiredResults.back() != std::numeric_limits<unsigned>::max())
+		requiredResults = ctx.requiredResults.back();
+	else
+		knownResultCnt = false;
+
+	if (knownResultCnt) {
+		const long fnCallMeta = (requiredArgs << 16) | requiredResults;
+
+		tripletCode.emplace_back(new Triplet{Triplet::Op::Call, ctx.stack.back(), ValueVariant{fnCallMeta}});
+		ctx.stack.pop_back();
+
+		for (long i = 0; i != requiredResults; ++i) {
+			auto tmp = RValue::getTemporary(ctx.tempCnt++);
+			tripletCode.emplace_back(new Triplet{Triplet::Op::Pop, tmp});
+			ctx.stack.push_back(tmp);
+		}
+	} else {
+		tripletCode.emplace_back(new Triplet{Triplet::Op::CallUnknownResults, ctx.stack.back(), ValueVariant{requiredArgs}});
+		ctx.stack.pop_back();
+
+		auto tmp = RValue::getTemporary(ctx.tempCnt++);
+		tripletCode.emplace_back(new Triplet{Triplet::Op::Pop, tmp});
+		ctx.stack.push_back(tmp);
+	}
 }
 
 void BasicBlock::process(BBContext &ctx, const AST::LValue &lval)
@@ -180,6 +218,7 @@ void BasicBlock::process(BBContext &ctx, const AST::LValue &lval)
 		return;
 	}
 
+	ctx.requiredResults.push_back(1);
 	process(ctx, lval.tableExpr());
 	auto tableVar = ctx.stack.back();
 	ctx.stack.pop_back();
@@ -191,13 +230,16 @@ void BasicBlock::process(BBContext &ctx, const AST::LValue &lval)
 		tripletCode.emplace_back(new Triplet{Triplet::Op::TableIndex, tableVar, ctx.stack.back()});
 		ctx.stack.pop_back();
 	}
+	ctx.requiredResults.pop_back();
 
 	ctx.stack.push_back(tripletCode.back().get());
 }
 
 void BasicBlock::process(BBContext &ctx, const AST::NestedExpr &nestedExpr)
 {
+	ctx.requiredResults.push_back(1);
 	process(ctx, nestedExpr.expr());
+	ctx.requiredResults.pop_back();
 }
 
 void BasicBlock::process(BBContext &ctx, const AST::Node &node)
@@ -228,7 +270,10 @@ void BasicBlock::process(BBContext &ctx, const AST::UnOp &unOp)
 		Triplet::Op::UnaryLength,
 	};
 
+	ctx.requiredResults.push_back(1);
 	process(ctx, unOp.operand());
+	ctx.requiredResults.pop_back();
+
 	auto operand = ctx.stack.back();
 	ctx.stack.pop_back();
 
