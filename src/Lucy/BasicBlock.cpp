@@ -254,12 +254,56 @@ void BasicBlock::process(BBContext &ctx, const AST::Node &node)
 		SUBCASE(FunctionCall);
 		SUBCASE(LValue);
 		SUBCASE(NestedExpr);
+		SUBCASE(TableCtor);
 		SUBCASE(UnOp);
 		SUBCASE(Value);
 		default: FATAL(node.location() << " : Unhandled node type: " << node.type() << '\n');
 	}
 
 	#undef SUBCASE
+}
+
+void BasicBlock::process(BBContext &ctx, const AST::TableCtor &tableCtor)
+{
+	auto table = RValue::getTemporary(ctx.tempCnt++);
+	tripletCode.emplace_back(new Triplet{Triplet::Op::TableCtor, table});
+	const RValue *tableRval = &tripletCode.back()->operands[0];
+
+	long idxCnt = 0;
+	for (const auto &f : tableCtor.fields()) {
+		auto k = RValue::getTemporary(ctx.tempCnt++);
+
+		switch (f->fieldType()) {
+			case AST::Field::Type::Brackets:
+				ctx.requiredResults.push_back(1);
+				process(ctx, f->keyExpr());
+				ctx.requiredResults.pop_back();
+
+				tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, k, ctx.stack.back()});
+				ctx.stack.pop_back();
+				break;
+			case AST::Field::Type::Literal:
+				tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, k, ValueVariant{f->fieldName()}});
+				break;
+			case AST::Field::Type::NoIndex:
+				tripletCode.emplace_back(new Triplet{Triplet::Op::Assign, k, ValueVariant{++idxCnt}});
+				break;
+		}
+
+		const RValue *keyRval = &tripletCode.back()->operands[0];
+
+		ctx.requiredResults.push_back(1);
+		process(ctx, f->valueExpr());
+		ctx.requiredResults.pop_back();
+
+		RValue v = ctx.stack.back();
+		ctx.stack.pop_back();
+
+		TableReference ref{tableRval, keyRval};
+		tripletCode.emplace_back(new Triplet{Triplet::Op::TableAssign, ValueVariant{ref}, v});
+	}
+
+	ctx.stack.push_back(table);
 }
 
 void BasicBlock::process(BBContext &ctx, const AST::UnOp &unOp)

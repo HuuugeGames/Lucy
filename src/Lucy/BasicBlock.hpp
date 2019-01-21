@@ -54,6 +54,7 @@ private:
 	void process(BBContext &ctx, const AST::LValue &lval);
 	void process(BBContext &ctx, const AST::NestedExpr &nestedExpr);
 	void process(BBContext &ctx, const AST::Node &node);
+	void process(BBContext &ctx, const AST::TableCtor &tableCtor);
 	void process(BBContext &ctx, const AST::UnOp &binOp);
 	void process(BBContext &ctx, const AST::Value &valueNode);
 };

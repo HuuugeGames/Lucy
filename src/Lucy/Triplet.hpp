@@ -30,6 +30,7 @@ struct Triplet {
 
 		Assign,
 		TableAssign,
+		TableCtor,
 		TableIndex,
 		Push,
 		Pop,
