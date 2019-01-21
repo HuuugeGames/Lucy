@@ -245,6 +245,11 @@ public:
 		extendLocation(n->location());
 	}
 
+	void prepend(Node *n)
+	{
+		m_exprs.emplace(m_exprs.begin(), n);
+	}
+
 	bool empty() const { return m_exprs.empty(); }
 	size_t size() const { return m_exprs.size(); }
 
