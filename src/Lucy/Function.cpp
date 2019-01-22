@@ -23,7 +23,10 @@ void Function::irDump(unsigned indent)
 {
 	const std::string indentStr(indent, '\t');
 	std::ostringstream ss;
-	ss << m_fnNode.fullName() << " (" << m_fnNode.location() << ')';
+	ss << m_fnNode.fullName();
+	if (m_fnNode.isAnonymous())
+		ss << " 0x" << &m_fnNode;
+	ss << " (" << m_fnNode.location() << ')';
 
 	m_cfg->irDump(indent, ss.str().c_str());
 }
