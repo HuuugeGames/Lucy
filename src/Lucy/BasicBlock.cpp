@@ -21,6 +21,16 @@ BasicBlock & BasicBlock::operator = (BasicBlock &&other) = default;
 
 BasicBlock::~BasicBlock() = default;
 
+void BasicBlock::irDump(unsigned indent) const
+{
+	const std::string indentStr(indent, '\t');
+
+	std::cout << indentStr << '[' << label << "]\n";
+	for (const auto &t : tripletCode)
+		std::cout << '\t' << indentStr << *t << '\n';
+	std::cout << indentStr << "[/" << label << "]\n";
+}
+
 bool BasicBlock::isEmpty() const
 {
 	return exitType == BasicBlock::ExitType::Fallthrough && insn.empty();
@@ -66,12 +76,6 @@ void BasicBlock::generateTriplets()
 		const long resultCnt = exprList.exprs().size();
 		tripletCode.emplace_back(new Triplet{Triplet::Op::Return, ValueVariant{resultCnt}});
 	}
-
-
-	std::cout << '[' << label << "]\n";
-	for (const auto &t : tripletCode)
-		std::cout << *t << '\n';
-	std::cout << "[/" << label << "]\n\n";
 }
 
 void BasicBlock::process(BBContext &ctx, const AST::Assignment &assignment)

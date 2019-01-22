@@ -54,6 +54,44 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk, Scope &scope)
 
 ControlFlowGraph::~ControlFlowGraph() = default;
 
+void ControlFlowGraph::graphvizDump(const char *filename) const
+{
+	std::ofstream file{filename};
+
+	file << "digraph BB {\n";
+	file << "\tnode [fontname=\"Monospace\"];\n"
+		"\tedge [fontname=\"Monospace\"];\n\n";
+
+	graphvizDump(file);
+
+	file << "}\n";
+}
+
+void ControlFlowGraph::irDump(unsigned indent, const char *label) const
+{
+	const std::string indentStr(indent, '\t');
+	if (!label)
+		label = "global scope";
+
+	std::cout << indentStr << '[' << label << "]\n";
+	for (unsigned i = 0; i != m_blocks.size(); ++i) {
+		m_blocks[i]->irDump(indent + 1);
+		if (i + 1 != m_blocks.size())
+			std::cout << '\n';
+	}
+
+	if (!m_functions.empty())
+		std::cout << '\n';
+
+	for (unsigned i = 0; i != m_functions.size(); ++i) {
+		m_functions[i]->irDump(indent + 1);
+		if (i + 1 != m_functions.size())
+			std::cout << '\n';
+	}
+
+	std::cout << indentStr << "[/" << label << "]\n";
+}
+
 std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx, const AST::Chunk &chunk)
 {
 	auto makeBB = [this, &ctx]
@@ -618,17 +656,4 @@ void ControlFlowGraph::graphvizDump(std::ostream &os) const
 
 	for (const auto &f : m_functions)
 		f->cfg().graphvizDump(os);
-}
-
-void ControlFlowGraph::graphvizDump(const char *filename) const
-{
-	std::ofstream file{filename};
-
-	file << "digraph BB {\n";
-	file << "\tnode [fontname=\"Monospace\"];\n"
-		"\tedge [fontname=\"Monospace\"];\n\n";
-
-	graphvizDump(file);
-
-	file << "}\n";
 }

@@ -20,6 +20,7 @@ public:
 	const BasicBlock * entry() const { return m_entry; }
 	void graphvizDump(const char *filename) const;
 	void graphvizDump(const std::string &filename) const { graphvizDump(filename.c_str()); }
+	void irDump(unsigned indent = 0, const char *label = nullptr) const;
 
 private:
 	class CFGContext;

@@ -26,6 +26,7 @@ struct BasicBlock {
 	BasicBlock & operator = (BasicBlock &&other);
 	~BasicBlock();
 
+	void irDump(unsigned indent = 0) const;
 	bool isEmpty() const;
 	void generateTriplets();
 	void removePredecessor(BasicBlock *block);

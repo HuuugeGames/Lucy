@@ -1,3 +1,4 @@
+#include <sstream>
 #include "AST.hpp"
 #include "ControlFlowGraph.hpp"
 #include "Function.hpp"
@@ -16,4 +17,13 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 		m_fnScope.addFunctionParam(param.first);
 
 	m_cfg = std::make_unique<ControlFlowGraph>(fnNode.chunk(), m_fnScope);
+}
+
+void Function::irDump(unsigned indent)
+{
+	const std::string indentStr(indent, '\t');
+	std::ostringstream ss;
+	ss << m_fnNode.fullName() << " (" << m_fnNode.location() << ')';
+
+	m_cfg->irDump(indent, ss.str().c_str());
 }
