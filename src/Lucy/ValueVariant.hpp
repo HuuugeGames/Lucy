@@ -5,7 +5,6 @@
 #include "AST_fwd.hpp"
 
 class RValue;
-class Triplet;
 
 using TableReference = std::pair <const RValue *, const RValue *>;
 using ResultPack = void *;

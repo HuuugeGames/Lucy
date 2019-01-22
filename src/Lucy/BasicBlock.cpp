@@ -54,10 +54,24 @@ void BasicBlock::generateTriplets()
 		ctx.requiredResults.pop_back();
 	}
 
-	std::cerr << "[triplets]\n";
+	if (returnExprList) {
+		ctx.tempCnt = 0;
+		const auto &exprList = static_cast<const AST::ExprList &>(*returnExprList);
+		process(ctx, exprList);
+
+		for (unsigned i = 0; i != exprList.exprs().size(); ++i) {
+			tripletCode.emplace_back(new Triplet{Triplet::Op::Push, ctx.stack.back()});
+			ctx.stack.pop_back();
+		}
+		const long resultCnt = exprList.exprs().size();
+		tripletCode.emplace_back(new Triplet{Triplet::Op::Return, ValueVariant{resultCnt}});
+	}
+
+
+	std::cout << '[' << label << "]\n";
 	for (const auto &t : tripletCode)
-		std::cerr << *t << '\n';
-	std::cerr << "[/triplets]\n\n";
+		std::cout << *t << '\n';
+	std::cout << "[/" << label << "]\n\n";
 }
 
 void BasicBlock::process(BBContext &ctx, const AST::Assignment &assignment)
