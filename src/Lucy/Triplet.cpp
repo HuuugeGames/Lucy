@@ -5,7 +5,7 @@
 
 std::ostream & operator << (std::ostream &os, const Triplet &t)
 {
-	if (any_of(t.operation, Triplet::Op::Assign, Triplet::Op::TableAssign)) {
+	if (anyOf(t.operation, Triplet::Op::Assign, Triplet::Op::TableAssign)) {
 		os << t.operands[0] << " = " << t.operands[1];
 	} else if (t.operation == Triplet::Op::TableCtor) {
 		os << t.operands[0] << " = {}";

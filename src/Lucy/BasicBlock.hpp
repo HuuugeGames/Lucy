@@ -9,6 +9,7 @@
 #include "RValue.hpp"
 #include "Serial.hpp"
 
+class ControlFlowGraph;
 class Scope;
 class Triplet;
 
@@ -21,6 +22,8 @@ struct BasicBlock {
 	};
 
 	BasicBlock(UID id);
+	BasicBlock(const std::string &label);
+	BasicBlock(std::string &&label);
 	BasicBlock(const BasicBlock &) = delete;
 	BasicBlock & operator = (const BasicBlock &) = delete;
 	BasicBlock & operator = (BasicBlock &&other);
@@ -58,4 +61,9 @@ private:
 	void process(BBContext &ctx, const AST::TableCtor &tableCtor);
 	void process(BBContext &ctx, const AST::UnOp &binOp);
 	void process(BBContext &ctx, const AST::Value &valueNode);
+
+	void splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST::BinOp &binOp);
+
+	std::unique_ptr <const AST::If> m_condNode;
+	std::array <std::unique_ptr <BasicBlock>, 2> m_subBlocks;
 };
