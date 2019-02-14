@@ -20,7 +20,7 @@ Job::~Job()
 {
 	assert(m_readFd == -1);
 	assert(m_writeFd == -1);
-	git_buf_free(&m_blobBuffer);
+	git_buf_dispose(&m_blobBuffer);
 }
 
 bool Job::start(const Config &cfg, std::string &&filename, git_repository *repo, git_index *repoIndex)
