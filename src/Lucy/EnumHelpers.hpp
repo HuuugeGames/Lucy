@@ -20,14 +20,23 @@ constexpr typename std::underlying_type <ET>::type & toUnderlyingRef(ET &et)
 
 #define EnumClass(EnumName, EnumType, ...) \
 	class EnumName { \
+		friend std::ostream & operator << (std::ostream &os, EnumName e) \
+		{ \
+			os << static_cast<const char *>(e); \
+			return os; \
+		} \
 	public: \
 		enum EnumName ## __Internal : EnumType { \
 			__VA_ARGS__ \
 		}; \
 		constexpr EnumName(EnumName ## __Internal value) : m_value{value} {} \
+		constexpr explicit EnumName(EnumType value) : m_value{value} {} \
 		constexpr bool operator == (EnumName other) const { return this->m_value == other.m_value; } \
 		constexpr bool operator != (EnumName other) const { return this->m_value != other.m_value; } \
+		constexpr bool operator == (EnumType other) const { return this->m_value == other; } \
+		constexpr bool operator != (EnumType other) const { return this->m_value != other; } \
 		operator const char *() { return m_strPack[m_value]; } \
+		constexpr explicit operator EnumType() { return m_value; } \
 		constexpr EnumType value() const { return m_value; } \
 		static std::optional<EnumName> fromString(const char *s) \
 		{ \

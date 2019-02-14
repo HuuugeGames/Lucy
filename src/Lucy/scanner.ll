@@ -102,7 +102,7 @@ local {
 }
 
 \"(\\.|[^\\"])*\"|\'(\\.|[^\\'])*\' {
-	return yy::Parser::make_STRING_VALUE(YYText(), m_driver.location(YYText()));
+	return yy::Parser::make_STRING_VALUE(std::string{YYText() + 1, static_cast<unsigned>(YYLeng() - 2)}, m_driver.location(YYText()));
 }
 
 "..." {

@@ -11,12 +11,13 @@
 #include "EnumHelpers.hpp"
 #include "Logger.hpp"
 #include "ValueType.hpp"
+#include "ValueVariant.hpp"
 
 namespace AST {
 
 class Node {
 public:
-	enum class Type {
+	EnumClass(Type, uint32_t,
 		Chunk,
 		ExprList,
 		NestedExpr,
@@ -41,8 +42,8 @@ public:
 		Repeat,
 		For,
 		ForEach,
-		_last,
-	};
+		_last
+	);
 
 	virtual void print(unsigned indent = 0) const
 	{
@@ -52,7 +53,7 @@ public:
 
 	virtual void printCode(std::ostream &os) const
 	{
-		os << "-- INVALID (" << static_cast<uint32_t>(type()) << ')';
+		os << "-- INVALID (" << type().value() << ')';
 	}
 
 	constexpr Node(const yy::location &location = yy::location{}) : m_location{location} {}
@@ -153,6 +154,7 @@ private:
 };
 
 class ParamList : public Node {
+	friend class Function;
 public:
 	static const ParamList Empty;
 
@@ -243,7 +245,13 @@ public:
 		extendLocation(n->location());
 	}
 
+	void prepend(Node *n)
+	{
+		m_exprs.emplace(m_exprs.begin(), n);
+	}
+
 	bool empty() const { return m_exprs.empty(); }
+	size_t size() const { return m_exprs.size(); }
 
 	const std::vector <std::unique_ptr <Node> > & exprs() const { return m_exprs; }
 
@@ -408,8 +416,8 @@ public:
 	}
 
 	const std::string & name() const { return m_name; }
-	const Node * tableExpr() const { return m_tableExpr.get(); }
-	const Node * keyExpr() const { return m_keyExpr.get(); }
+	const Node & tableExpr() const { return *m_tableExpr; }
+	const Node & keyExpr() const { return *m_keyExpr; }
 
 	const std::string & resolveName() const;
 
@@ -451,6 +459,12 @@ private:
 class VarList : public Node {
 public:
 	VarList(const yy::location &location = yy::location{}) : Node{location} {}
+
+	VarList(std::initializer_list <LValue *> vars, const yy::location &location = yy::location{}) : Node{location}
+	{
+		for (auto v : vars)
+			append(v);
+	}
 
 	VarList(std::initializer_list <const char *> varNames, const yy::location &location = yy::location{}) : Node{location}
 	{
@@ -531,6 +545,13 @@ public:
 
 class Assignment : public Node {
 public:
+	Assignment(AST::LValue *lval, Node *expr, const yy::location &location = yy::location{})
+		: Node{location}, m_varList{new VarList{}}, m_exprList{new ExprList{}}, m_local{false}
+	{
+		m_varList->append(lval);
+		m_exprList->append(expr);
+	}
+
 	Assignment(const std::string &name, Node *expr, const yy::location &location = yy::location{})
 		: Node{location}, m_varList{new VarList{}}, m_exprList{new ExprList{}}, m_local{false}
 	{
@@ -629,6 +650,7 @@ public:
 	Node::Type type() const override { return Type::Value; }
 
 	virtual ValueType valueType() const = 0;
+	virtual ValueVariant toValueVariant() const = 0;
 };
 
 class NilValue : public Value {
@@ -648,6 +670,7 @@ public:
 	}
 
 	ValueType valueType() const override { return ValueType::Nil; }
+	ValueVariant toValueVariant() const override { return nullptr; }
 
 	std::unique_ptr <Node> clone() const override
 	{
@@ -675,6 +698,7 @@ public:
 	}
 
 	ValueType valueType() const override { return ValueType::Boolean; }
+	ValueVariant toValueVariant() const override { return m_value; }
 
 	bool value() const { return m_value; }
 
@@ -712,6 +736,7 @@ public:
 	}
 
 	ValueType valueType() const override { return ValueType::String; }
+	ValueVariant toValueVariant() const override { return m_value; }
 
 	const std::string & value() const { return m_value; }
 
@@ -743,6 +768,7 @@ public:
 	ValueType valueType() const override { return ValueType::Integer; }
 
 	long value() const { return m_value; }
+	ValueVariant toValueVariant() const override { return m_value; }
 
 	std::unique_ptr <Node> clone() const override
 	{
@@ -772,6 +798,7 @@ public:
 	ValueType valueType() const override { return ValueType::Real; }
 
 	double value() const { return m_value; }
+	ValueVariant toValueVariant() const override { return m_value; }
 
 	std::unique_ptr <Node> clone() const override
 	{
@@ -832,6 +859,11 @@ protected:
 	{
 	}
 
+	std::unique_ptr <Node> cloneCallExpr() const
+	{
+		return m_functionExpr->clone();
+	}
+
 private:
 	std::unique_ptr <Node> m_functionExpr;
 	std::unique_ptr <ExprList> m_args;
@@ -855,9 +887,9 @@ public:
 		do_indent(indent);
 		std::cout << "Method call:\n";
 		functionExpr().print(indent + 1);
-		do_indent(indent);
+		do_indent(indent + 1);
 		std::cout << "Method name: " << m_methodName << '\n';
-		args().print(indent + 1);
+		args().print(indent + 2);
 	}
 
 	void printCode(std::ostream &os) const override
@@ -880,6 +912,15 @@ public:
 	std::unique_ptr <Node> clone() const override
 	{
 		return std::unique_ptr <MethodCall>{new MethodCall{*this}};
+	}
+
+	std::unique_ptr <FunctionCall> cloneAsFunctionCall() const
+	{
+		LValue *fnCallExpr = new LValue{cloneCallExpr().release(), m_methodName};
+		ExprList *methodArgs = new ExprList{cloneCallExpr().release()};
+		for (const auto &e : args().exprs())
+			methodArgs->append(e->clone().release());
+		return std::make_unique<FunctionCall>(fnCallExpr, methodArgs, location());
 	}
 
 private:
@@ -1047,7 +1088,7 @@ private:
 
 class BinOp : public Node {
 public:
-	enum class Type {
+	enum class Type : unsigned {
 		Or,
 		And,
 		Equal,
@@ -1156,6 +1197,7 @@ public:
 		Negate,
 		Not,
 		Length,
+		_last
 	};
 
 	UnOp(Type t, Node *op, const yy::location &location = yy::location{})
@@ -1278,6 +1320,8 @@ public:
 
 	bool isMethod() const { return !m_method.empty(); }
 	bool isNested() const { return m_name.size() > 1; }
+	const std::vector <std::string> & nameParts() const { return m_name; }
+	const std::string & method() const { return m_method; }
 
 	void appendMethodName(std::string &&methodName, const yy::location &location)
 	{
@@ -1353,6 +1397,16 @@ public:
 		if (!m_name)
 			return "<anonymous>";
 		return m_name->fullName();
+	}
+
+	void clearName()
+	{
+		if (m_name->isMethod()) {
+			if (!m_params)
+				m_params = std::make_unique<ParamList>();
+			m_params->m_names.insert(m_params->m_names.begin(), std::make_pair("self", yy::location{}));
+		}
+		m_name.reset();
 	}
 
 	void setName(FunctionName *name)

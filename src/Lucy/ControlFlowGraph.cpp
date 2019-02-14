@@ -9,7 +9,7 @@
 #include "Scope.hpp"
 #include "Serial.hpp"
 
-struct CFGContext {
+struct ControlFlowGraph::CFGContext {
 	std::vector <std::pair <BasicBlock *, const AST::Break &> > breakBlocks;
 	std::vector <BasicBlock *> returnBlocks;
 	Scope *currentScope;
@@ -49,9 +49,48 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk, Scope &scope)
 
 	calcPredecessors();
 	prune();
+	generateTriplets();
 }
 
 ControlFlowGraph::~ControlFlowGraph() = default;
+
+void ControlFlowGraph::graphvizDump(const char *filename) const
+{
+	std::ofstream file{filename};
+
+	file << "digraph BB {\n";
+	file << "\tnode [fontname=\"Monospace\"];\n"
+		"\tedge [fontname=\"Monospace\"];\n\n";
+
+	graphvizDump(file);
+
+	file << "}\n";
+}
+
+void ControlFlowGraph::irDump(unsigned indent, const char *label) const
+{
+	const std::string indentStr(indent, '\t');
+	if (!label)
+		label = "global scope";
+
+	std::cout << indentStr << '[' << label << "]\n";
+	for (unsigned i = 0; i != m_blocks.size(); ++i) {
+		m_blocks[i]->irDump(indent + 1);
+		if (i + 1 != m_blocks.size())
+			std::cout << '\n';
+	}
+
+	if (!m_functions.empty())
+		std::cout << '\n';
+
+	for (unsigned i = 0; i != m_functions.size(); ++i) {
+		m_functions[i]->irDump(indent + 1);
+		if (i + 1 != m_functions.size())
+			std::cout << '\n';
+	}
+
+	std::cout << indentStr << "[/" << label << "]\n";
+}
 
 std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx, const AST::Chunk &chunk)
 {
@@ -89,7 +128,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			break;
 		}
 
-		switch (insn->type()) {
+		switch (insn->type().value()) {
 			case AST::Node::Type::Break: {
 				auto breakNode = static_cast<const AST::Break *>(insn.get());
 				current->exitType = BasicBlock::ExitType::Break;
@@ -99,7 +138,12 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			case AST::Node::Type::Function: {
 				auto fnNode = static_cast<const AST::Function *>(insn.get());
 				process(ctx, *fnNode);
-				current->insn.push_back(insn.get());
+				if (!fnNode->isAnonymous()) {
+					const auto &assignFn = rewrite(ctx, *fnNode);
+					current->insn.push_back(&assignFn);
+				} else {
+					current->insn.push_back(insn.get());
+				}
 				break;
 			}
 			case AST::Node::Type::Assignment: {
@@ -108,8 +152,14 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				current->insn.push_back(insn.get());
 				break;
 			}
-			case AST::Node::Type::FunctionCall:
 			case AST::Node::Type::MethodCall: {
+				auto methodCallNode = static_cast<const AST::MethodCall *>(insn.get());
+				process(ctx, *methodCallNode);
+				const auto &fnCallNode = rewrite(ctx, *methodCallNode);
+				current->insn.push_back(&fnCallNode);
+				break;
+			}
+			case AST::Node::Type::FunctionCall: {
 				auto fnCallNode = static_cast<const AST::FunctionCall *>(insn.get());
 				process(ctx, *fnCallNode);
 				current->insn.push_back(insn.get());
@@ -251,7 +301,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				break;
 			}
 			default:
-				FATAL(insn->location() << " : Unhandled instruction type: " << toUnderlying(insn->type()) << '\n');
+				FATAL(insn->location() << " : Unhandled instruction type: " << insn->type() << '\n');
 		}
 	}
 
@@ -297,17 +347,17 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::FunctionCall &fnCallN
 	process(ctx, fnCallNode.args());
 }
 
-void ControlFlowGraph::process(CFGContext &ctx, const AST::LValue &lv)
+void ControlFlowGraph::process(CFGContext &ctx, const AST::LValue &lval)
 {
-	switch (lv.lvalueType()) {
+	switch (lval.lvalueType()) {
 		case AST::LValue::Type::Name:
-			ctx.currentScope->addVarAccess(lv, VarAccess::Type::Read);
+			ctx.currentScope->addVarAccess(lval, VarAccess::Type::Read);
 			break;
 		case AST::LValue::Type::Bracket:
-			process(ctx, *lv.keyExpr());
+			process(ctx, lval.keyExpr());
 			[[fallthrough]]
 		case AST::LValue::Type::Dot:
-			process(ctx, *lv.tableExpr());
+			process(ctx, lval.tableExpr());
 			break;
 	}
 }
@@ -317,7 +367,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::Node &node)
 	if (node.isValue() || node.type() == AST::Node::Type::Ellipsis)
 		return;
 
-	switch (node.type()) {
+	switch (node.type().value()) {
 		case AST::Node::Type::Function:
 			process(ctx, static_cast<const AST::Function &>(node));
 			break;
@@ -345,7 +395,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::Node &node)
 			break;
 		}
 		default:
-			FATAL(node.location() << " : Unhandled node type: " << toUnderlying(node.type()) << '\n');
+			FATAL(node.location() << " : Unhandled node type: " << node.type() << '\n');
 	}
 }
 
@@ -382,16 +432,31 @@ void ControlFlowGraph::calcPredecessors()
 	doCalcPredecessors(m_entry);
 }
 
+void ControlFlowGraph::generateTriplets()
+{
+	++m_walkPhase;
+
+	std::function <void (BasicBlock *)> doGenerateTriplets = [this, &doGenerateTriplets](BasicBlock *block)
+	{
+		if (!block || block->phase == m_walkPhase)
+			return;
+		block->phase = m_walkPhase;
+
+		block->generateTriplets();
+		for (BasicBlock *next : block->nextBlock)
+			doGenerateTriplets(next);
+	};
+
+	doGenerateTriplets(m_entry);
+}
+
 void ControlFlowGraph::prune()
 {
 	++m_walkPhase;
 
 	std::function <void (BasicBlock *)> doPrune = [this, &doPrune](BasicBlock *block)
 	{
-		if (!block)
-			return;
-
-		if (block->phase == m_walkPhase)
+		if (!block || block->phase == m_walkPhase)
 			return;
 		block->phase = m_walkPhase;
 
@@ -495,6 +560,37 @@ const AST::Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::ForEach
 	return *result;
 }
 
+const AST::Assignment & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::Function &fnNode)
+{
+	assert(!fnNode.isAnonymous());
+
+	const auto &fnName = fnNode.name();
+	const auto &nameParts = fnName.nameParts();
+	AST::LValue *nameLval = new AST::LValue{nameParts[0]};
+
+	for (unsigned i = 1; i != nameParts.size(); ++i)
+		nameLval = new AST::LValue{nameLval, nameParts[i]};
+	if (fnName.isMethod())
+		nameLval = new AST::LValue{nameLval, fnName.method()};
+
+	AST::Function *anonymizedFn = static_cast<AST::Function *>(fnNode.clone().release());
+	anonymizedFn->clearName();
+
+	AST::Assignment *result = new AST::Assignment{nameLval, anonymizedFn};
+	if (fnNode.isLocal())
+		result->setLocal(true);
+
+	m_additionalNodes.emplace_back(result);
+	return *result;
+}
+
+const AST::FunctionCall & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::MethodCall &callNode)
+{
+	AST::FunctionCall *result = callNode.cloneAsFunctionCall().release();
+	m_additionalNodes.emplace_back(result);
+	return *result;
+}
+
 void ControlFlowGraph::graphvizDump(std::ostream &os) const
 {
 	const std::string CFGPrefix = "CFG_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + '_';
@@ -560,17 +656,4 @@ void ControlFlowGraph::graphvizDump(std::ostream &os) const
 
 	for (const auto &f : m_functions)
 		f->cfg().graphvizDump(os);
-}
-
-void ControlFlowGraph::graphvizDump(const char *filename) const
-{
-	std::ofstream file{filename};
-
-	file << "digraph BB {\n";
-	file << "\tnode [fontname=\"Monospace\"];\n"
-		"\tedge [fontname=\"Monospace\"];\n\n";
-
-	graphvizDump(file);
-
-	file << "}\n";
 }

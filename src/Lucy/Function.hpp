@@ -2,11 +2,8 @@
 
 #include <memory>
 
+#include "AST_fwd.hpp"
 #include "Scope.hpp"
-
-namespace AST {
-	class Function;
-}
 
 class ControlFlowGraph;
 
@@ -15,6 +12,7 @@ public:
 	Function(const AST::Function &fnNode, Scope &scope);
 
 	const ControlFlowGraph & cfg() const { return *m_cfg; }
+	void irDump(unsigned indent = 0);
 
 private:
 	const AST::Function &m_fnNode;

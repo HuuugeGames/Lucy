@@ -14,7 +14,9 @@ add_executable(${PROJECT_NAME}
 	Function.cpp
 	Logger.cpp
 	Preprocessor.cpp
+	RValue.cpp
 	Scope.cpp
+	Triplet.cpp
 	VarAccess.cpp
 
 	main.cpp

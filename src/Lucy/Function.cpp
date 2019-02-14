@@ -1,3 +1,4 @@
+#include <sstream>
 #include "AST.hpp"
 #include "ControlFlowGraph.hpp"
 #include "Function.hpp"
@@ -8,6 +9,7 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	if (!fnNode.isLocal() && !fnNode.isAnonymous() && !fnNode.isMethod() && !fnNode.isNested() && scope.functionScope() == nullptr)
 		REPORT(Check::GlobalFunctionDefinition, fnNode.name().location() << " : function definition in global scope: " << fnNode.fullName() << '\n');
 
+	//TODO add check for param named "self"
 	if (fnNode.isMethod())
 		m_fnScope.addFunctionParam("self");
 
@@ -15,4 +17,16 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 		m_fnScope.addFunctionParam(param.first);
 
 	m_cfg = std::make_unique<ControlFlowGraph>(fnNode.chunk(), m_fnScope);
+}
+
+void Function::irDump(unsigned indent)
+{
+	const std::string indentStr(indent, '\t');
+	std::ostringstream ss;
+	ss << m_fnNode.fullName();
+	if (m_fnNode.isAnonymous())
+		ss << " 0x" << &m_fnNode;
+	ss << " (" << m_fnNode.location() << ')';
+
+	m_cfg->irDump(indent, ss.str().c_str());
 }

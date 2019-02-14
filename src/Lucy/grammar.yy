@@ -292,7 +292,11 @@ prefix_expr args {
 	$$ = new AST::FunctionCall{$prefix_expr, $args, @$};
 }
 | prefix_expr COLON ID args {
-	$$ = new AST::MethodCall{$prefix_expr, $args, $ID, @$};
+	yy::location fnExprLocation = @prefix_expr;
+	fnExprLocation.end = @ID.end;
+	AST::LValue *fnExpr = new AST::LValue{$prefix_expr, $ID, fnExprLocation};
+	$args->prepend($prefix_expr->clone().release());
+	$$ = new AST::FunctionCall{fnExpr, $args, @$};
 }
 ;
 

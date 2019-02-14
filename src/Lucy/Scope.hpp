@@ -5,11 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "AST_fwd.hpp"
 #include "VarAccess.hpp"
-
-namespace AST {
-	class LValue;
-};
 
 class Scope {
 public:
