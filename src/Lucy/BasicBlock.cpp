@@ -32,8 +32,9 @@ struct BasicBlock::BBContext {
 	void popBlock()
 	{
 		assert(!blockStack.empty());
-		current = blockStack.back();
+		current->finalize(*this);
 		blockStack.pop_back();
+		current = blockStack.empty() ? nullptr : blockStack.back();
 	}
 
 	void pushBlock(BasicBlock *b)
@@ -69,15 +70,6 @@ void BasicBlock::irDump(unsigned indent) const
 	std::cout << indentStr << '[' << label << "]\n";
 	for (const auto &t : tripletCode)
 		std::cout << '\t' << indentStr << *t << '\n';
-
-	if (exitType == ExitType::Conditional) {
-		std::cout << indentStr << "\t<TODO compare>\n"
-			<< indentStr << "\tjmp_true " << nextBlock[0]->label << '\n'
-			<< indentStr << "\tjmp " << nextBlock[1]->label << '\n';
-	} else {
-		if (nextBlock[0])
-			std::cout << indentStr << "\tjmp " << nextBlock[0]->label << '\n';
-	}
 
 	std::cout << indentStr << "[/" << label << "]\n";
 
@@ -119,22 +111,56 @@ void BasicBlock::generateTriplets()
 
 		ctx.requiredResults.push_back(0);
 		ctx.tempCnt = 0;
-		process(ctx, *insnNode);
+		ctx.current->process(ctx, *insnNode);
 		ctx.requiredResults.pop_back();
 		assert(ctx.stack.empty());
 	}
 
-	if (returnExprList) {
-		const auto &exprList = static_cast<const AST::ExprList &>(*returnExprList);
-		ctx.tempCnt = 0;
-		process(ctx, exprList);
+	ctx.popBlock();
+}
 
-		for (unsigned i = 0; i != exprList.exprs().size(); ++i) {
-			ctx.emplaceTriplet(new Triplet{Triplet::Op::Push, ctx.stack.back()});
+void BasicBlock::finalize(BBContext &ctx)
+{
+	switch (ctx.current->exitType) {
+		case ExitType::Conditional: {
+			assert(ctx.current->condition);
+			assert(!ctx.current->returnExprList);
+
+			ctx.requiredResults.push_back(1);
+			process(ctx, *ctx.current->condition);
+			ctx.requiredResults.pop_back();
+
+			ctx.emplaceTriplet(new Triplet{Triplet::Op::Test, ctx.stack.back()});
 			ctx.stack.pop_back();
+			ctx.emplaceTriplet(new Triplet{Triplet::Op::JumpTrue, ValueVariant{ctx.current->nextBlock[0]->label}});
+			ctx.emplaceTriplet(new Triplet{Triplet::Op::Jump, ValueVariant{ctx.current->nextBlock[1]->label}});
+			break;
 		}
-		const long resultCnt = exprList.exprs().size();
-		ctx.emplaceTriplet(new Triplet{Triplet::Op::Return, ValueVariant{resultCnt}});
+
+		case ExitType::Return: {
+			assert(!ctx.current->condition);
+
+			if (!ctx.current->returnExprList)
+				break;
+
+			const auto &exprList = static_cast<const AST::ExprList &>(*ctx.current->returnExprList);
+			ctx.tempCnt = 0;
+			process(ctx, exprList);
+
+			for (unsigned i = 0; i != exprList.exprs().size(); ++i) {
+				ctx.emplaceTriplet(new Triplet{Triplet::Op::Push, ctx.stack.back()});
+				ctx.stack.pop_back();
+			}
+			const long resultCnt = exprList.exprs().size();
+			ctx.emplaceTriplet(new Triplet{Triplet::Op::Return, ValueVariant{resultCnt}});
+
+			break;
+		}
+
+		default: {
+			if (ctx.current->nextBlock[0])
+				ctx.emplaceTriplet(new Triplet{Triplet::Op::Jump, ValueVariant{ctx.current->nextBlock[0]->label}});
+		}
 	}
 }
 
@@ -437,6 +463,7 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 	falseBlock->scope = trueBlock->scope = ctx.current->scope;
 
 	trueBlock->nextBlock[0] = falseBlock;
+	trueBlock->predecessors.push_back(ctx.current);
 
 	ctx.current->m_subBlocks[0].reset(trueBlock);
 	ctx.current->m_subBlocks[1].reset(falseBlock);
@@ -460,7 +487,8 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 	};
 
 	ctx.current->exitType = ExitType::Conditional;
-	ctx.current->condition = condNode;
+	ctx.current->returnExprList = nullptr;
+	ctx.current->condition = condNode->conditions()[0].get();
 	ctx.current->m_condNode.reset(condNode);
 	ctx.popBlock();
 

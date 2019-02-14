@@ -50,19 +50,21 @@ struct BasicBlock {
 private:
 	class BBContext;
 
-	void process(BBContext &ctx, const AST::Assignment &assignment);
-	void process(BBContext &ctx, const AST::BinOp &binOp);
-	void process(BBContext &ctx, const AST::ExprList &exprList);
-	void process(BBContext &ctx, const AST::Function &fnNode);
-	void process(BBContext &ctx, const AST::FunctionCall &fnCallNode);
-	void process(BBContext &ctx, const AST::LValue &lval);
-	void process(BBContext &ctx, const AST::NestedExpr &nestedExpr);
-	void process(BBContext &ctx, const AST::Node &node);
-	void process(BBContext &ctx, const AST::TableCtor &tableCtor);
-	void process(BBContext &ctx, const AST::UnOp &binOp);
-	void process(BBContext &ctx, const AST::Value &valueNode);
+	static void finalize(BBContext &ctx);
 
-	void splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST::BinOp &binOp);
+	static void process(BBContext &ctx, const AST::Assignment &assignment);
+	static void process(BBContext &ctx, const AST::BinOp &binOp);
+	static void process(BBContext &ctx, const AST::ExprList &exprList);
+	static void process(BBContext &ctx, const AST::Function &fnNode);
+	static void process(BBContext &ctx, const AST::FunctionCall &fnCallNode);
+	static void process(BBContext &ctx, const AST::LValue &lval);
+	static void process(BBContext &ctx, const AST::NestedExpr &nestedExpr);
+	static void process(BBContext &ctx, const AST::Node &node);
+	static void process(BBContext &ctx, const AST::TableCtor &tableCtor);
+	static void process(BBContext &ctx, const AST::UnOp &binOp);
+	static void process(BBContext &ctx, const AST::Value &valueNode);
+
+	static void splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST::BinOp &binOp);
 
 	std::unique_ptr <const AST::If> m_condNode;
 	std::array <std::unique_ptr <BasicBlock>, 2> m_subBlocks;

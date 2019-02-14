@@ -27,7 +27,13 @@ std::ostream & operator << (std::ostream &os, const Triplet &t)
 		os << "call_varres " << t.operands[0] << ' ' << t.operands[1];
 	} else if (t.operation == Triplet::Op::Return) {
 		os << "return " << t.operands[0];
-	} else {
+	} else if (t.operation == Triplet::Op::Test) {
+		os << "test " << t.operands[0];
+	} else if (t.operation == Triplet::Op::Jump) {
+		os << "jump " << t.operands[0];
+	} else if (t.operation == Triplet::Op::JumpTrue) {
+		os << "jump_true " << t.operands[0];
+	} else { //unary operation
 		os << "tmp_0x" << &t << " = ";
 		switch (t.operation) {
 			case Triplet::Op::UnaryNegate: os << '-'; break;

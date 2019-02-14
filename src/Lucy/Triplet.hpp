@@ -37,6 +37,10 @@ struct Triplet {
 		Call,
 		CallUnknownResults,
 		Return,
+
+		Test,
+		Jump,
+		JumpTrue,
 	};
 
 	Op operation;
