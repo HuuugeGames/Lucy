@@ -49,7 +49,7 @@ namespace git {
 	{
 		if (errcode == 0)
 			return;
-		const auto *e = giterr_last();
+		const auto *e = git_error_last();
 		fprintf(stderr, "%s: %s\n", msgPrefix, e->message);
 		exit(1);
 	}
