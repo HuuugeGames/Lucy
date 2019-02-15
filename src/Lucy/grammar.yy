@@ -27,10 +27,10 @@ class Driver;
 %skeleton "lalr1.cc"
 
 %defines
+%define api.parser.class {Parser}
 %define api.token.constructor
 %define api.value.type variant
 %define parse.error verbose
-%define parser_class_name {Parser}
 %parse-param {Driver &driver}
 
 %locations
