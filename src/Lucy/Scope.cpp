@@ -1,10 +1,11 @@
 #include <iostream>
 
 #include "AST.hpp"
+#include "Function.hpp"
 #include "Scope.hpp"
 
-Scope::Scope(Scope *parent, Scope *functionScope)
-	: m_parent{parent}, m_functionScope{functionScope}
+Scope::Scope(Scope *parent, Function *function)
+	: m_parent{parent}, m_function{function}
 {
 }
 
@@ -12,13 +13,14 @@ Scope::~Scope()
 {
 }
 
-Scope * Scope::push(Scope *functionScope)
+Scope * Scope::functionScope()
 {
-	if (!functionScope)
-		m_children.emplace_back(new Scope{this, this->m_functionScope});
-	else
-		m_children.emplace_back(new Scope{this, functionScope});
+	return m_function ? &m_function->scope() : nullptr;
+}
 
+Scope * Scope::push()
+{
+	m_children.emplace_back(new Scope{this, m_function});
 	return m_children.back().get();
 }
 
@@ -81,7 +83,7 @@ void Scope::addVarAccess(const AST::LValue &var, VarAccess::Type type)
 	if (type == VarAccess::Type::Write) {
 		if (!originScope || (originScope != this && storage == VarAccess::Storage::Global)) {
 			Check check = Check::GlobalStore_FunctionScope;
-			if (!m_functionScope)
+			if (!m_function)
 				check = Check::GlobalStore_GlobalScope;
 
 			if (resolvedName == "_")

@@ -4,7 +4,7 @@
 #include "Function.hpp"
 
 Function::Function(const AST::Function &fnNode, Scope &scope)
-	: m_fnNode{fnNode}, m_fnScope{&scope, &m_fnScope}
+	: m_fnNode{fnNode}, m_fnScope{&scope, this}
 {
 	if (!fnNode.isLocal() && !fnNode.isAnonymous() && !fnNode.isMethod() && !fnNode.isNested() && scope.functionScope() == nullptr)
 		REPORT(Check::GlobalFunctionDefinition, fnNode.name().location() << " : function definition in global scope: " << fnNode.fullName() << '\n');
@@ -30,4 +30,19 @@ void Function::irDump(unsigned indent)
 	ss << " (" << m_fnNode.location() << ')';
 
 	m_cfg->irDump(indent, ss.str().c_str());
+}
+
+void Function::setResultCount(const AST::Return &returnNode)
+{
+	unsigned resultCnt = 0;
+	if (!returnNode.empty())
+		resultCnt = returnNode.exprList().size();
+
+	if (!m_resultCnt) {
+		m_resultCnt = resultCnt;
+		return;
+	}
+
+	if (*m_resultCnt != resultCnt)
+		REPORT(Check::Function_VariableResultCount, returnNode.location() << " : returning other number of results (" << resultCnt << ") than in other return statement (" << *m_resultCnt << ")\n");
 }
