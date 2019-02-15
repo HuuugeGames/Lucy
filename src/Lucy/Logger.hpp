@@ -10,6 +10,7 @@
 EnumClass(Check, uint32_t,
 	EmptyChunk,
 	EmptyFunction,
+	Function_DuplicateParam,
 	GlobalFunctionDefinition,
 	GlobalStore_FunctionScope,
 	GlobalStore_GlobalScope,

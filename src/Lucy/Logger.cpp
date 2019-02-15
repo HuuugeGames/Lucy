@@ -7,6 +7,8 @@ Logger::Logger()
 	setFlag(Check::EmptyChunk);
 	unsetFlag(Check::EmptyFunction);
 
+	setFlag(Check::Function_DuplicateParam);
+
 	setFlag(Check::GlobalFunctionDefinition);
 	setFlag(Check::GlobalStore_FunctionScope);
 	setFlag(Check::GlobalStore_GlobalScope);

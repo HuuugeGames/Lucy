@@ -9,12 +9,13 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	if (!fnNode.isLocal() && !fnNode.isAnonymous() && !fnNode.isMethod() && !fnNode.isNested() && scope.functionScope() == nullptr)
 		REPORT(Check::GlobalFunctionDefinition, fnNode.name().location() << " : function definition in global scope: " << fnNode.fullName() << '\n');
 
-	//TODO add check for param named "self"
 	if (fnNode.isMethod())
 		m_fnScope.addFunctionParam("self");
 
-	for (const auto &param : fnNode.params().names())
-		m_fnScope.addFunctionParam(param.first);
+	for (const auto &param : fnNode.params().names()) {
+		if (!m_fnScope.addFunctionParam(param.first))
+			REPORT(Check::Function_DuplicateParam, fnNode.params().location() << " : duplicate function parameter: " << param.first << '\n');
+	}
 
 	m_cfg = std::make_unique<ControlFlowGraph>(fnNode.chunk(), m_fnScope);
 }

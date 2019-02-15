@@ -22,9 +22,13 @@ Scope * Scope::push(Scope *functionScope)
 	return m_children.back().get();
 }
 
-void Scope::addFunctionParam(const std::string &name)
+bool Scope::addFunctionParam(const std::string &name)
 {
+	if (std::find(m_fnParams.begin(), m_fnParams.end(), name) != m_fnParams.end())
+		return false;
+
 	m_fnParams.push_back(name);
+	return true;
 }
 
 void Scope::addLocalStore(const AST::LValue &var)

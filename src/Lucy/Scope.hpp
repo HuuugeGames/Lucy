@@ -19,7 +19,7 @@ public:
 	Scope * parent() { return m_parent; }
 	Scope * push(Scope *functionScope = nullptr);
 
-	void addFunctionParam(const std::string &name);
+	bool addFunctionParam(const std::string &name);
 	void addLoad(const AST::LValue &var);
 	void addLocalStore(const AST::LValue &var);
 	void addVarAccess(const AST::LValue &var, VarAccess::Type type);
