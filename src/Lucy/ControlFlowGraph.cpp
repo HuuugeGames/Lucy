@@ -48,8 +48,8 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk, Scope &scope)
 		ret->nextBlock[0] = m_exit;
 
 	calcPredecessors();
-	prune();
 	generateTriplets();
+	prune();
 }
 
 ControlFlowGraph::~ControlFlowGraph() = default;

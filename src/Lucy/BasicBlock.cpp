@@ -468,6 +468,13 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 	ctx.current->m_subBlocks[0].reset(trueBlock);
 	ctx.current->m_subBlocks[1].reset(falseBlock);
 
+	for (auto nextBlock : ctx.current->nextBlock) {
+		if (nextBlock) {
+			nextBlock->removePredecessor(ctx.current);
+			nextBlock->predecessors.push_back(falseBlock);
+		}
+	}
+
 	ctx.current->nextBlock[0] = trueBlock;
 	ctx.current->nextBlock[1] = falseBlock;
 
