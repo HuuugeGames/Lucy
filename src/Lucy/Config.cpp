@@ -56,7 +56,13 @@ void Config::parse(const std::vector <std::string_view> &argv)
 	while (idx != argv.size()) {
 		current = argv[idx];
 
-		if (current == "--enable" || current == "--disable") {
+		if (current == "--disable-all") {
+			for (unsigned i = 0; i != Check::_last; ++i)
+				Logger::disable(Check{i});
+		} else if (current == "--enable-all") {
+			for (unsigned i = 0; i != Check::_last; ++i)
+				Logger::enable(Check{i});
+		} else if (current == "--enable" || current == "--disable") {
 			ensureArg();
 			auto flag = Check::fromString(argv[idx]);
 			if (flag.has_value()) {
