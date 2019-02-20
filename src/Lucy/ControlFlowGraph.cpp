@@ -48,7 +48,7 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk, Scope &scope)
 		ret->nextBlock[0] = m_exit;
 
 	calcPredecessors();
-	generateTriplets();
+	generateIR();
 	prune();
 }
 
@@ -435,7 +435,7 @@ void ControlFlowGraph::calcPredecessors()
 	doCalcPredecessors(m_entry);
 }
 
-void ControlFlowGraph::generateTriplets()
+void ControlFlowGraph::generateIR()
 {
 	++m_walkPhase;
 
@@ -445,7 +445,7 @@ void ControlFlowGraph::generateTriplets()
 			return;
 		block->phase = m_walkPhase;
 
-		block->generateTriplets();
+		block->generateIR();
 		for (BasicBlock *next : block->nextBlock)
 			doGenerateTriplets(next);
 	};

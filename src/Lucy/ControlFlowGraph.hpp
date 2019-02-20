@@ -38,7 +38,7 @@ private:
 	void process(CFGContext &ctx, const AST::VarList &varList);
 
 	void calcPredecessors();
-	void generateTriplets();
+	void generateIR();
 	void prune();
 	void graphvizDump(std::ostream &os) const;
 

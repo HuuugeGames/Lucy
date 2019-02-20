@@ -6,12 +6,12 @@
 #include <vector>
 
 #include "AST_fwd.hpp"
+#include "IR.hpp"
 #include "RValue.hpp"
 #include "Serial.hpp"
 
 class ControlFlowGraph;
 class Scope;
-class Triplet;
 
 struct BasicBlock {
 	enum class ExitType {
@@ -31,14 +31,14 @@ struct BasicBlock {
 
 	void irDump(unsigned indent = 0) const;
 	bool isEmpty() const;
-	void generateTriplets();
+	void generateIR();
 	void removePredecessor(BasicBlock *block);
 
 	std::string label;
 	std::vector <const AST::Node *> insn;
-	std::vector <std::unique_ptr <Triplet> > tripletCode;
-	ExitType exitType = ExitType::Fallthrough;
+	std::vector <std::unique_ptr <IR::Triplet> > irCode;
 
+	ExitType exitType = ExitType::Fallthrough;
 	const AST::Node *returnExprList = nullptr;
 	const AST::Node *condition = nullptr;
 	std::array <BasicBlock *, 2> nextBlock = {nullptr, nullptr};

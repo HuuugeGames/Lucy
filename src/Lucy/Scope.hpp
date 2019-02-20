@@ -18,6 +18,7 @@ public:
 	~Scope();
 
 	Function * function() { return m_function; }
+	const std::vector <std::string> & functionParams() const { return m_fnParams; }
 
 	Scope * functionScope();
 	Scope * parent() { return m_parent; }
