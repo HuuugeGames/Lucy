@@ -18,6 +18,15 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	}
 
 	m_cfg = std::make_unique<ControlFlowGraph>(fnNode.chunk(), m_fnScope);
+
+	if (m_resultCnt.has_value()) {
+		for (BasicBlock *pred : m_cfg->exit()->predecessors) {
+			if (pred->exitType != BasicBlock::ExitType::Return) {
+				REPORT(Check::Function_VariableResultCount, fnNode.location() << " : function " << fnNode.fullName() << " might fall-through without returning any result\n");
+				break;
+			}
+		}
+	}
 }
 
 void Function::irDump(unsigned indent)

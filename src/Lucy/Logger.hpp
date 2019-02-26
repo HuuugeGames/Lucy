@@ -70,5 +70,5 @@ private:
 #define FATAL(msg) \
 	do { \
 		Logger::log() << msg; \
-		exit(1); \
+		::exit(1); \
 	} while (false)
