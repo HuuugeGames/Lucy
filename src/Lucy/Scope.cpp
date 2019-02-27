@@ -49,7 +49,7 @@ void Scope::addVarAccess(const AST::LValue &var, VarAccess::Type type)
 
 	while (!originScope && currentScope) {
 		for (auto iter = currentScope->m_rwOps.crbegin(); iter != currentScope->m_rwOps.crend(); ++iter) {
-			if ((*iter)->var().resolveName() == resolvedName) {
+			if ((*iter)->type() == VarAccess::Type::Write && (*iter)->var().resolveName() == resolvedName) {
 				storage = (*iter)->storage();
 				if (closure && storage == VarAccess::Storage::Local)
 					storage = VarAccess::Storage::Upvalue;
