@@ -54,6 +54,7 @@ private:
 
 	static void process(BBContext &ctx, const AST::Assignment &assignment);
 	static void process(BBContext &ctx, const AST::BinOp &binOp);
+	static void process(BBContext &ctx, const AST::Ellipsis &ellipsis);
 	static void process(BBContext &ctx, const AST::ExprList &exprList);
 	static void process(BBContext &ctx, const AST::Function &fnNode);
 	static void process(BBContext &ctx, const AST::FunctionCall &fnCallNode);

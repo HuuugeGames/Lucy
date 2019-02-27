@@ -185,6 +185,9 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 					current->returnExprList = nullptr;
 				}
 
+				if (auto fn = ctx.currentScope->function(); fn)
+					fn->setResultCount(*returnNode);
+
 				break;
 			}
 			case AST::Node::Type::If: {

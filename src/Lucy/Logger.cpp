@@ -8,6 +8,7 @@ Logger::Logger()
 	unsetFlag(Check::EmptyFunction);
 
 	setFlag(Check::Function_DuplicateParam);
+	setFlag(Check::Function_VariableResultCount);
 
 	setFlag(Check::GlobalFunctionDefinition);
 	setFlag(Check::GlobalStore_FunctionScope);

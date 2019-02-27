@@ -11,6 +11,7 @@ EnumClass(Check, uint32_t,
 	EmptyChunk,
 	EmptyFunction,
 	Function_DuplicateParam,
+	Function_VariableResultCount,
 	GlobalFunctionDefinition,
 	GlobalStore_FunctionScope,
 	GlobalStore_GlobalScope,
@@ -68,6 +69,6 @@ private:
 
 #define FATAL(msg) \
 	do { \
-		Logger::log() << msg; \
-		exit(1); \
+		Logger::log() << '[' << __FILE__ << ':' << __LINE__ << "] " << msg; \
+		::exit(1); \
 	} while (false)

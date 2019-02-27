@@ -18,6 +18,7 @@ public:
 	~ControlFlowGraph();
 
 	const BasicBlock * entry() const { return m_entry; }
+	const BasicBlock * exit() const { return m_exit; }
 	void graphvizDump(const char *filename) const;
 	void graphvizDump(const std::string &filename) const { graphvizDump(filename.c_str()); }
 	void irDump(unsigned indent = 0, const char *label = nullptr) const;

@@ -8,16 +8,20 @@
 #include "AST_fwd.hpp"
 #include "VarAccess.hpp"
 
+class Function;
+
 class Scope {
 public:
-	Scope(Scope *parent = nullptr, Scope *functionScope = nullptr);
+	Scope(Scope *parent = nullptr, Function *function = nullptr);
 	Scope(const Scope &) = delete;
 	void operator = (const Scope &) = delete;
 	~Scope();
 
-	Scope * functionScope() { return m_functionScope; }
+	Function * function() { return m_function; }
+
+	Scope * functionScope();
 	Scope * parent() { return m_parent; }
-	Scope * push(Scope *functionScope = nullptr);
+	Scope * push();
 
 	bool addFunctionParam(const std::string &name);
 	void addLoad(const AST::LValue &var);
@@ -26,7 +30,7 @@ public:
 
 private:
 	Scope *m_parent = nullptr;
-	Scope *m_functionScope = nullptr;
+	Function *m_function = nullptr;
 	std::vector <std::unique_ptr <Scope> > m_children;
 	std::vector <std::unique_ptr <VarAccess> > m_rwOps;
 

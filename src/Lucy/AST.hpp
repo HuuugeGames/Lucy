@@ -1409,6 +1409,11 @@ public:
 		m_name.reset();
 	}
 
+	void setName(std::string &&name)
+	{
+		m_name.reset(new FunctionName{std::move(name)});
+	}
+
 	void setName(FunctionName *name)
 	{
 		m_name.reset(name);

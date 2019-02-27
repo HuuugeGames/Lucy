@@ -27,8 +27,8 @@ int main(int argc, const char **argv)
 	if (d.parse() != 0)
 		return 1;
 
+	assert(d.chunks().size() == 1);
 	if (conf.getOpt(Config::DumpAST)) {
-		assert(d.chunks().size() == 1);
 		d.chunks()[0]->print();
 		std::cout << std::flush;
 	}
