@@ -69,6 +69,6 @@ private:
 
 #define FATAL(msg) \
 	do { \
-		Logger::log() << msg; \
+		Logger::log() << '[' << __FILE__ << ':' << __LINE__ << "] " << msg; \
 		::exit(1); \
 	} while (false)
