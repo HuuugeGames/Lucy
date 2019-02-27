@@ -13,8 +13,16 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 		m_fnScope.addFunctionParam("self");
 
 	for (const auto &param : fnNode.params().names()) {
-		if (!m_fnScope.addFunctionParam(param.first))
-			REPORT(Check::Function_DuplicateParam, fnNode.params().location() << " : duplicate function parameter: " << param.first << '\n');
+		std::cout << "param: <" << param.first << ", " << param.second << ">\n";
+	}
+
+	for (const auto &param : fnNode.params().names()) {
+		if (!m_fnScope.addFunctionParam(param.first)) {
+			if (param.first != "self")
+				REPORT(Check::Function_DuplicateParam, param.second << " : duplicate function parameter: " << param.first << '\n');
+			else
+				REPORT(Check::Function_DuplicateParam, param.second << " : parameter \"self\" clashes with implicit parameter of the same name\n");
+		}
 	}
 
 	m_cfg = std::make_unique<ControlFlowGraph>(fnNode.chunk(), m_fnScope);
@@ -22,7 +30,7 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	if (m_resultCnt.value_or(0)) {
 		for (BasicBlock *pred : m_cfg->exit()->predecessors) {
 			if (pred->exitType != BasicBlock::ExitType::Return) {
-				REPORT(Check::Function_VariableResultCount, fnNode.location() << " : function " << fnNode.fullName() << " might fall-through without returning any result\n");
+				REPORT(Check::Function_VariableResultCount, fnNode.name().location() << " : function " << fnNode.fullName() << " might fall-through without returning any result\n");
 				break;
 			}
 		}

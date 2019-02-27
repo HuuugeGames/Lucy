@@ -348,7 +348,7 @@ ID {
 }
 | name_list[names] COMMA ID {
 	$$ = $names;
-	$$->append($ID, @$);
+	$$->append($ID, @ID);
 }
 ;
 
