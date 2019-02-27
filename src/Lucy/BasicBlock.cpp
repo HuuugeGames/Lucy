@@ -250,6 +250,12 @@ void BasicBlock::process(BBContext &ctx, const AST::BinOp &binOp)
 	ctx.stack.push_back(ctx.lastTriplet());
 }
 
+void BasicBlock::process(BBContext &ctx, const AST::Ellipsis &ellipsis)
+{
+	//TODO don't crash for now, think about implementing properly in the future
+	//perhaps a simple rewrite to an arg{} array will suffice
+}
+
 void BasicBlock::process(BBContext &ctx, const AST::ExprList &exprList)
 {
 	const auto &exprs = exprList.exprs();
@@ -364,6 +370,7 @@ void BasicBlock::process(BBContext &ctx, const AST::Node &node)
 	switch (node.type().value()) {
 		SUBCASE(Assignment);
 		SUBCASE(BinOp);
+		SUBCASE(Ellipsis);
 		SUBCASE(ExprList);
 		SUBCASE(Function);
 		SUBCASE(FunctionCall);
