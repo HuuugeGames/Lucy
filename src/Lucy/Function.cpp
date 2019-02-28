@@ -13,10 +13,6 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 		m_fnScope.addFunctionParam("self");
 
 	for (const auto &param : fnNode.params().names()) {
-		std::cout << "param: <" << param.first << ", " << param.second << ">\n";
-	}
-
-	for (const auto &param : fnNode.params().names()) {
 		if (!m_fnScope.addFunctionParam(param.first)) {
 			if (param.first != "self")
 				REPORT(Check::Function_DuplicateParam, param.second << " : duplicate function parameter: " << param.first << '\n');
@@ -30,7 +26,12 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	if (m_resultCnt.value_or(0)) {
 		for (BasicBlock *pred : m_cfg->exit()->predecessors) {
 			if (pred->exitType != BasicBlock::ExitType::Return) {
-				REPORT(Check::Function_VariableResultCount, fnNode.name().location() << " : function " << fnNode.fullName() << " might fall-through without returning any result\n");
+				yy::location fnLoc;
+				if (fnNode.isAnonymous())
+					fnLoc = fnNode.location();
+				else
+					fnLoc = fnNode.name().location();
+				REPORT(Check::Function_VariableResultCount, fnLoc << " : function " << fnNode.fullName() << " might fall-through without returning any result\n");
 				break;
 			}
 		}

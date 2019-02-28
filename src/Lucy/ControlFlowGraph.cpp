@@ -313,7 +313,11 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::Assignment &assignment)
 {
-	process(ctx, assignment.varList());
+	for (const auto &lval : assignment.varList().vars()) {
+		if (lval->lvalueType() != AST::LValue::Type::Name)
+			process(ctx, *lval);
+	}
+
 	process(ctx, assignment.exprList());
 
 	if (assignment.isLocal()) {

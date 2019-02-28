@@ -17,6 +17,7 @@ EnumClass(Check, uint32_t,
 	GlobalStore_GlobalScope,
 	GlobalStore_Underscore,
 	GlobalStore_UpperCase,
+	ShadowingDefinition,
 	_last
 );
 
@@ -31,7 +32,7 @@ public:
 
 	static void enable(Check c) { instance().setFlag(c); }
 	static void disable(Check c) { instance().unsetFlag(c); }
-	static bool dispatch(Check c);
+	static bool isEnabled(Check c);
 
 	static std::ostream & log() { return *instance().m_output; }
 	static unsigned threshold() { return instance().m_threshold; }
@@ -70,7 +71,7 @@ private:
 
 #define REPORT(check, msg) \
 	do { \
-		if (Logger::dispatch(check)) \
+		if (Logger::isEnabled(check)) \
 			Logger::log() << '[' << Check{check} << "] " << msg; \
 	} while (false)
 

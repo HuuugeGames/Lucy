@@ -2,6 +2,7 @@
 
 #include "AST.hpp"
 #include "Function.hpp"
+#include "Logger.hpp"
 #include "Scope.hpp"
 
 Scope::Scope(Scope *parent, Function *function)
@@ -35,6 +36,20 @@ bool Scope::addFunctionParam(const std::string &name)
 
 void Scope::addLocalStore(const AST::LValue &var)
 {
+	const std::string &varName = var.resolveName();
+
+	if (Logger::isEnabled(Check::ShadowingDefinition)) {
+		for (auto iter = m_rwOps.crbegin(); iter != m_rwOps.crend(); ++iter) {
+			if (!(*iter)->isFunctionParameter()) {
+				const std::string &resolvedName = (*iter)->var().resolveName();
+				if (resolvedName != "_" && resolvedName == varName) {
+					REPORT(Check::ShadowingDefinition, var.location() << " : definition of a local variable " << varName
+						<< " shadows earlier uses of a variable with the same name (" << (*iter)->var().location() << ")\n");
+				}
+			}
+		}
+	}
+
 	m_rwOps.emplace_back(new VarAccess{var, VarAccess::Type::Write, VarAccess::Storage::Local});
 }
 

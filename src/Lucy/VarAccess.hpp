@@ -3,21 +3,22 @@
 #include <vector>
 
 #include "AST_fwd.hpp"
+#include "EnumHelpers.hpp"
 
 class Scope;
 
 class VarAccess {
 public:
-	enum class Type {
+	EnumClass(Type, uint8_t,
 		Read,
 		Write
-	};
+	);
 
-	enum class Storage {
+	EnumClass(Storage, uint8_t,
 		Global,
 		Upvalue,
-		Local,
-	};
+		Local
+	);
 
 	VarAccess(const AST::LValue &var, Type type, Storage storage, VarAccess *origin = nullptr);
 	VarAccess(const VarAccess &) = delete;
@@ -28,6 +29,8 @@ public:
 	const AST::LValue & var() const { return m_var; }
 	Storage storage() const { return m_storage; }
 	Type type() const { return m_type; }
+	bool isFunctionParameter() const { return m_type == Type::Read && m_storage == Storage::Local && !m_origin; }
+
 private:
 	const AST::LValue &m_var;
 	Type m_type;
