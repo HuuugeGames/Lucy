@@ -12,6 +12,5 @@ EnumClass(ValueType, uint8_t,
 	Real,
 	String,
 	Table,
-	Function,
-	_last
+	Function
 );

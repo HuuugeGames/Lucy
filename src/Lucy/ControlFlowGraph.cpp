@@ -243,6 +243,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				previous->nextBlock[0] = entry;
 				previous->nextBlock[1] = current;
 				exit->nextBlock[0] = previous;
+				exit->setLoopFooter(current);
 				redirectBreaks(current);
 				break;
 			}
@@ -256,12 +257,17 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				current = makeBB();
 				current->exitType = BasicBlock::ExitType::Conditional;
 				current->condition = &repeatNode->condition();
-				current->nextBlock[1] = entry;
+
+				auto helperBlock = makeBB();
+				current->nextBlock[1] = helperBlock;
+				helperBlock->nextBlock[0] = entry;
+				helperBlock->setAttribute(BasicBlock::Attribute::BackEdge);
 				exit->nextBlock[0] = current;
 
 				auto previous = current;
 				current = makeBB();
 				previous->nextBlock[0] = current;
+				helperBlock->setLoopFooter(current);
 				redirectBreaks(current);
 				break;
 			}
@@ -289,6 +295,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				m_additionalNodes.emplace_back(std::move(step));
 
 				current = makeBB();
+				exit->setLoopFooter(current);
 				previous->nextBlock[1] = current;
 				redirectBreaks(current);
 				break;
@@ -460,7 +467,12 @@ void ControlFlowGraph::prune()
 {
 	++m_walkPhase;
 
-	std::function <void (BasicBlock *)> doPrune = [this, &doPrune](BasicBlock *block)
+	auto canPrune = [this](const BasicBlock *block)
+	{
+		return block && block != m_exit && block != m_entry && block->canPrune();
+	};
+
+	std::function <void (BasicBlock *)> doPrune = [this, &canPrune, &doPrune](BasicBlock *block)
 	{
 		if (!block || block->phase == m_walkPhase)
 			return;
@@ -468,7 +480,7 @@ void ControlFlowGraph::prune()
 
 		for (unsigned int i = 0; i < 2; ++i) {
 			BasicBlock *next = block->nextBlock[i];
-			while (next && next->isEmpty() && next != m_exit) {
+			while (canPrune(next)) {
 				assert(!next->nextBlock[1]);
 
 				BasicBlock *subNext = next->nextBlock[0];
@@ -497,7 +509,7 @@ void ControlFlowGraph::prune()
 
 	size_t idx = 0;
 	while (idx < m_blocks.size()) {
-		if (m_blocks[idx].get() != m_entry && m_blocks[idx].get() != m_exit && m_blocks[idx]->isEmpty()) {
+		if (canPrune(m_blocks[idx].get())) {
 			m_blocks[idx] = std::move(m_blocks.back());
 			m_blocks.pop_back();
 		} else {
@@ -651,9 +663,14 @@ void ControlFlowGraph::graphvizDump(std::ostream &os) const
 			os << '\t' << unique_label(bb) << " -> " << unique_label(falseBlock) << " [label=\"false\",labeldistance=2.0];\n";
 		} else {
 			assert(!bb->nextBlock[1]);
-			for (unsigned i = 0; i < 2; ++i) {
-				if (auto b = bb->nextBlock[i]; b)
-					os << '\t' << unique_label(bb) << " -> " << unique_label(b) << ";\n";
+			if (auto next = bb->nextBlock[0]; next) {
+				os << '\t' << unique_label(bb) << " -> " << unique_label(next);
+				if (bb->attribute(BasicBlock::Attribute::BackEdge)) {
+					assert(bb->loopFooter());
+					os << " [color=blue];\n";
+					os << '\t' << unique_label(bb) << " -> " << unique_label(bb->loopFooter()) << " [style=dashed,color=blue]";
+				}
+				os << ";\n";
 			}
 		}
 

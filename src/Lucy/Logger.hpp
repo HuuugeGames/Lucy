@@ -17,8 +17,7 @@ EnumClass(Check, uint32_t,
 	GlobalStore_GlobalScope,
 	GlobalStore_Underscore,
 	GlobalStore_UpperCase,
-	ShadowingDefinition,
-	_last
+	ShadowingDefinition
 );
 
 class Logger {
@@ -58,7 +57,7 @@ private:
 	void setFlag(Check c) { m_flags.set(c.value()); }
 	void unsetFlag(Check c) { m_flags.unset(c.value()); }
 
-	Bitfield <Check::_last> m_flags;
+	Bitfield <Check::_size> m_flags;
 	std::ostream *m_output = &std::cerr;
 	unsigned m_threshold = std::numeric_limits<unsigned>::max();
 };

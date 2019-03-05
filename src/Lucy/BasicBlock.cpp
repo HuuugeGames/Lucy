@@ -77,6 +77,11 @@ void BasicBlock::irDump(unsigned indent) const
 	}
 }
 
+bool BasicBlock::canPrune() const
+{
+	return isEmpty() && !attribute(Attribute::BackEdge) && !attribute(Attribute::LoopFooter);
+}
+
 bool BasicBlock::isEmpty() const
 {
 	return exitType == BasicBlock::ExitType::Fallthrough && insn.empty();
@@ -113,6 +118,13 @@ void BasicBlock::removePredecessor(BasicBlock *block)
 	}
 
 	assert(false);
+}
+
+void BasicBlock::setLoopFooter(BasicBlock *dst)
+{
+	this->setAttribute(BasicBlock::Attribute::BackEdge);
+	m_loopFooterEdge = dst;
+	dst->setAttribute(BasicBlock::Attribute::LoopFooter);
 }
 
 void BasicBlock::finalize(BBContext &ctx)
@@ -242,7 +254,7 @@ void BasicBlock::process(BBContext &ctx, const AST::BinOp &binOp)
 	auto rhs = ctx.stack.back();
 	ctx.stack.pop_back();
 
-	ctx.emplaceTriplet(new IR::Triplet{static_cast<IR::Op>(binOp.binOpType()), lhs, rhs});
+	ctx.emplaceTriplet(new IR::Triplet{IR::Op{binOp.binOpType().value()}, lhs, rhs});
 	ctx.stack.push_back(ctx.lastTriplet());
 }
 
@@ -426,7 +438,7 @@ void BasicBlock::process(BBContext &ctx, const AST::TableCtor &tableCtor)
 
 void BasicBlock::process(BBContext &ctx, const AST::UnOp &unOp)
 {
-	static const std::array <IR::Op, static_cast<unsigned>(AST::UnOp::Type::_last)> UnaryOpType {
+	static const std::array <IR::Op, AST::UnOp::Type::_size> UnaryOpType {
 		IR::Op::UnaryNegate,
 		IR::Op::UnaryNot,
 		IR::Op::UnaryLength,
@@ -455,6 +467,7 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 	BasicBlock *trueBlock = new BasicBlock{ctx.current->label + "_T"};
 	BasicBlock *falseBlock = new BasicBlock{ctx.current->label + "_F"};
 
+	falseBlock->setAttribute(BasicBlock::Attribute::SubBlock);
 	falseBlock->exitType = ctx.current->exitType;
 	falseBlock->returnExprList = ctx.current->returnExprList;
 	falseBlock->condition = ctx.current->condition;
@@ -465,6 +478,7 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 	falseBlock->phase = trueBlock->phase = ctx.current->phase;
 	falseBlock->scope = trueBlock->scope = ctx.current->scope;
 
+	trueBlock->setAttribute(BasicBlock::Attribute::SubBlock);
 	trueBlock->nextBlock[0] = falseBlock;
 	trueBlock->predecessors.push_back(ctx.current);
 

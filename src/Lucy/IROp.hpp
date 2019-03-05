@@ -1,10 +1,10 @@
 #pragma once
 
-#include <iosfwd>
+#include "EnumHelpers.hpp"
 
 namespace IR {
 
-enum class Op : unsigned {
+EnumClass(Op, unsigned,
 	//keep this in the same order as AST::BinOp::Type
 	Or,
 	And,
@@ -39,10 +39,9 @@ enum class Op : unsigned {
 
 	Test,
 	Jump,
-	JumpTrue,
-	_last
-};
+	JumpTrue
+);
 
 } //namespace IR
 
-std::ostream & operator << (std::ostream &os, IR::Op op);
+const char * prettyPrint(IR::Op op);

@@ -9,10 +9,10 @@ std::ostream & operator << (std::ostream &os, const IR::Triplet &t)
 		os << t.operands[0] << " = " << t.operands[1];
 	} else if (t.operation == IR::Op::TableCtor) {
 		os << t.operands[0] << " = {}";
-	} else if (static_cast<unsigned>(t.operation) < static_cast<unsigned>(AST::BinOp::Type::_last)) {
+	} else if (t.operation.value() < AST::BinOp::Type::_size) {
 		os << "tmp_0x" << &t << " = "
 			<< t.operands[0]
-			<< ' ' << AST::BinOp::toString(static_cast<AST::BinOp::Type>(t.operation)) << ' '
+			<< ' ' << AST::BinOp::toString(AST::BinOp::Type{t.operation.value()}) << ' '
 			<< t.operands[1];
 	} else if (t.operation == IR::Op::TableIndex) {
 		os << "tmp_0x" << &t << " = " << t.operands[0] << '[' << t.operands[1] << ']';
@@ -35,7 +35,7 @@ std::ostream & operator << (std::ostream &os, const IR::Triplet &t)
 		os << "jump_true " << t.operands[0];
 	} else { //unary operation
 		os << "tmp_0x" << &t << " = ";
-		switch (t.operation) {
+		switch (t.operation.value()) {
 			case IR::Op::UnaryNegate: os << '-'; break;
 			case IR::Op::UnaryNot: os << "not "; break;
 			case IR::Op::UnaryLength: os << '#'; break;

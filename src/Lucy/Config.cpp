@@ -57,10 +57,10 @@ void Config::parse(const std::vector <std::string_view> &argv)
 		current = argv[idx];
 
 		if (current == "--disable-all") {
-			for (unsigned i = 0; i != Check::_last; ++i)
+			for (unsigned i = 0; i != Check::_size; ++i)
 				Logger::disable(Check{i});
 		} else if (current == "--enable-all") {
-			for (unsigned i = 0; i != Check::_last; ++i)
+			for (unsigned i = 0; i != Check::_size; ++i)
 				Logger::enable(Check{i});
 		} else if (current == "--enable" || current == "--disable") {
 			ensureArg();
@@ -74,16 +74,16 @@ void Config::parse(const std::vector <std::string_view> &argv)
 				LOG(Logger::Pedantic, "Unknown flag: " << argv[idx] << '\n');
 			}
 		} else if (current == "--dump-ast") {
-			boolOpts.set(DumpAST);
+			boolOpts.set(Option::DumpAST);
 		} else if (current == "--dump-ir") {
-			boolOpts.set(DumpIR);
+			boolOpts.set(Option::DumpIR);
 		} else if (current == "--graphviz") {
 			ensureArg();
 			this->graphvizOutput = argv[idx];
 		} else if (current == "-h" || current == "--help") {
 			usage();
 		} else if (current == "--output" || current == "-o") {
-			if (boolOpts.get(WriteToStdout))
+			if (boolOpts.get(Option::WriteToStdout))
 				FATAL("--output and --stdout are mutually exclusive\n");
 
 			ensureArg();
@@ -92,7 +92,7 @@ void Config::parse(const std::vector <std::string_view> &argv)
 			if (!this->logOutput.empty())
 				FATAL("--output and --stdout are mutually exclusive\n");
 
-			boolOpts.set(WriteToStdout);
+			boolOpts.set(Option::WriteToStdout);
 		} else {
 			if (current[0] == '-')
 				LOG(Logger::Pedantic, "Skipping unrecognized option: " << current << '\n');
