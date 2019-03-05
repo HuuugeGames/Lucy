@@ -39,6 +39,13 @@ struct BasicBlock {
 
 	void irDump(unsigned indent = 0) const;
 
+	const std::string & label() const { return m_label; }
+	void setLabel(const std::string &label) { m_label = label; }
+	void setLabel(std::string &&label) { m_label = std::move(label); }
+
+	ExitType exitType() const { return m_exitType; }
+	void setExitType(ExitType et) { m_exitType = et; }
+
 	bool attribute(Attribute attrib) const { return static_cast<bool>(m_attrib.get(attrib.value())); }
 	void setAttribute(Attribute attrib) { m_attrib.set(attrib.value()); }
 
@@ -50,11 +57,9 @@ struct BasicBlock {
 	const BasicBlock * loopFooter() const { return m_loopFooterEdge; }
 	void setLoopFooter(BasicBlock *dst);
 
-	std::string label;
 	std::vector <const AST::Node *> insn;
 	std::vector <std::unique_ptr <IR::Triplet> > irCode;
 
-	ExitType exitType = ExitType::Fallthrough;
 	const AST::Node *returnExprList = nullptr;
 	const AST::Node *condition = nullptr;
 	std::array <BasicBlock *, 2> nextBlock = {nullptr, nullptr};
@@ -84,6 +89,8 @@ private:
 
 	static void splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST::BinOp &binOp);
 
+	std::string m_label;
+	ExitType m_exitType = ExitType::Fallthrough;
 	Bitfield <Attribute::_size> m_attrib;
 	std::unique_ptr <const AST::If> m_condNode;
 	std::array <std::unique_ptr <BasicBlock>, 2> m_subBlocks;

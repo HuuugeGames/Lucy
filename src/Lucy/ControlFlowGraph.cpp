@@ -122,7 +122,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 	}
 
 	for (const auto &insn : chunk.children()) {
-		if (current->exitType != BasicBlock::ExitType::Fallthrough) {
+		if (current->exitType() != BasicBlock::ExitType::Fallthrough) {
 			LOG(Logger::Error, insn->location() << " : dangling statements after block exit\n");
 			break;
 		}
@@ -130,7 +130,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 		switch (insn->type().value()) {
 			case AST::Node::Type::Break: {
 				auto breakNode = static_cast<const AST::Break *>(insn.get());
-				current->exitType = BasicBlock::ExitType::Break;
+				current->setExitType(BasicBlock::ExitType::Break);
 				ctx.breakBlocks.emplace_back(current, *breakNode);
 				break;
 			}
@@ -174,7 +174,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			}
 			case AST::Node::Type::Return: {
 				auto returnNode = static_cast<const AST::Return *>(insn.get());
-				current->exitType = BasicBlock::ExitType::Return;
+				current->setExitType(BasicBlock::ExitType::Return);
 				ctx.returnBlocks.push_back(current);
 
 				if (!returnNode->empty()) {
@@ -197,7 +197,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 				BasicBlock *previous;
 				for (size_t i = 0; i < cond.size(); ++i) {
-					current->exitType = BasicBlock::ExitType::Conditional;
+					current->setExitType(BasicBlock::ExitType::Conditional);
 					current->condition = cond[i].get();
 
 					process(ctx, *cond[i]);
@@ -232,7 +232,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 				auto previous = current;
 				current = makeBB();
-				current->exitType = BasicBlock::ExitType::Conditional;
+				current->setExitType(BasicBlock::ExitType::Conditional);
 				current->condition = &whileNode->condition();
 				previous->nextBlock[0] = current;
 				previous = current;
@@ -255,7 +255,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				current->nextBlock[0] = entry;
 
 				current = makeBB();
-				current->exitType = BasicBlock::ExitType::Conditional;
+				current->setExitType(BasicBlock::ExitType::Conditional);
 				current->condition = &repeatNode->condition();
 
 				auto helperBlock = makeBB();
@@ -281,7 +281,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				previous->nextBlock[0] = current;
 
 				auto condition = forNode->cloneCondition();
-				current->exitType = BasicBlock::ExitType::Conditional;
+				current->setExitType(BasicBlock::ExitType::Conditional);
 				current->condition = condition.get();
 				m_additionalNodes.emplace_back(std::move(condition));
 
@@ -614,20 +614,20 @@ void ControlFlowGraph::graphvizDump(std::ostream &os) const
 	const std::string CFGPrefix = "CFG_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + '_';
 	auto unique_label = [&CFGPrefix](auto &&block) -> std::string
 	{
-		return CFGPrefix + block->label;
+		return CFGPrefix + block->label();
 	};
 
 	for (const auto &bb : m_blocks) {
 		os << '\t' << unique_label(bb) << " [shape=box";
-		if (!bb->insn.empty() || bb->exitType != BasicBlock::ExitType::Fallthrough) {
-			os << ",label=<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\"><tr><td align=\"left\">//" << bb->label << "</td></tr><hr/>";
+		if (!bb->insn.empty() || bb->exitType() != BasicBlock::ExitType::Fallthrough) {
+			os << ",label=<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\"><tr><td align=\"left\">//" << bb->label() << "</td></tr><hr/>";
 			for (const auto &i : bb->insn) {
 				os << "<tr><td align=\"left\">";
 				i->printCode(os);
 				os << "</td></tr>";
 			}
 
-			switch (bb->exitType) {
+			switch (bb->exitType()) {
 				case BasicBlock::ExitType::Conditional: {
 					if (!bb->insn.empty())
 						os << "<hr/>";
@@ -657,7 +657,7 @@ void ControlFlowGraph::graphvizDump(std::ostream &os) const
 		}
 		os << "];\n";
 
-		if (bb->exitType == BasicBlock::ExitType::Conditional) {
+		if (bb->exitType() == BasicBlock::ExitType::Conditional) {
 			auto [trueBlock, falseBlock] = std::make_tuple(bb->nextBlock[0], bb->nextBlock[1]);
 			os << '\t' << unique_label(bb) << " -> " << unique_label(trueBlock) << " [label=\"true\",labelangle=45];\n";
 			os << '\t' << unique_label(bb) << " -> " << unique_label(falseBlock) << " [label=\"false\",labeldistance=2.0];\n";

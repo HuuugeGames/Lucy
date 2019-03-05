@@ -43,17 +43,17 @@ struct BasicBlock::BBContext {
 };
 
 BasicBlock::BasicBlock(UID id)
-	: label{std::string{"BB_"} + std::to_string(id)}
+	: m_label{std::string{"BB_"} + std::to_string(id)}
 {
 }
 
 BasicBlock::BasicBlock(const std::string &label)
-	: label{label}
+	: m_label{label}
 {
 }
 
 BasicBlock::BasicBlock(std::string &&label)
-	: label{std::move(label)}
+	: m_label{std::move(label)}
 {
 }
 
@@ -63,11 +63,11 @@ BasicBlock::~BasicBlock() = default;
 
 void BasicBlock::irDump(unsigned indent) const
 {
-	Logger::indent(std::cout, indent) << '[' << label << "]\n";
+	Logger::indent(std::cout, indent) << '[' << label() << "]\n";
 	for (const auto &t : irCode)
 		Logger::indent(std::cout, indent + 1) << *t << '\n';
 
-	Logger::indent(std::cout, indent) << "[/" << label << "]\n";
+	Logger::indent(std::cout, indent) << "[/" << label() << "]\n";
 
 	if (m_condNode) {
 		std::cout << '\n';
@@ -84,7 +84,7 @@ bool BasicBlock::canPrune() const
 
 bool BasicBlock::isEmpty() const
 {
-	return exitType == BasicBlock::ExitType::Fallthrough && insn.empty();
+	return exitType() == BasicBlock::ExitType::Fallthrough && insn.empty();
 }
 
 void BasicBlock::generateIR()
@@ -129,7 +129,7 @@ void BasicBlock::setLoopFooter(BasicBlock *dst)
 
 void BasicBlock::finalize(BBContext &ctx)
 {
-	switch (ctx.current->exitType) {
+	switch (ctx.current->exitType()) {
 		case ExitType::Conditional: {
 			assert(ctx.current->condition);
 			assert(!ctx.current->returnExprList);
@@ -140,8 +140,8 @@ void BasicBlock::finalize(BBContext &ctx)
 
 			ctx.emplaceTriplet(new IR::Triplet{IR::Op::Test, ctx.stack.back()});
 			ctx.stack.pop_back();
-			ctx.emplaceTriplet(new IR::Triplet{IR::Op::JumpTrue, ValueVariant{ctx.current->nextBlock[0]->label}});
-			ctx.emplaceTriplet(new IR::Triplet{IR::Op::Jump, ValueVariant{ctx.current->nextBlock[1]->label}});
+			ctx.emplaceTriplet(new IR::Triplet{IR::Op::JumpTrue, ValueVariant{ctx.current->nextBlock[0]->label()}});
+			ctx.emplaceTriplet(new IR::Triplet{IR::Op::Jump, ValueVariant{ctx.current->nextBlock[1]->label()}});
 			break;
 		}
 
@@ -167,7 +167,7 @@ void BasicBlock::finalize(BBContext &ctx)
 
 		default: {
 			if (ctx.current->nextBlock[0])
-				ctx.emplaceTriplet(new IR::Triplet{IR::Op::Jump, ValueVariant{ctx.current->nextBlock[0]->label}});
+				ctx.emplaceTriplet(new IR::Triplet{IR::Op::Jump, ValueVariant{ctx.current->nextBlock[0]->label()}});
 		}
 	}
 }
@@ -464,11 +464,11 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 {
 	assert(anyOf(binOp.binOpType(), AST::BinOp::Type::And, AST::BinOp::Type::Or));
 
-	BasicBlock *trueBlock = new BasicBlock{ctx.current->label + "_T"};
-	BasicBlock *falseBlock = new BasicBlock{ctx.current->label + "_F"};
+	BasicBlock *trueBlock = new BasicBlock{ctx.current->label() + "_T"};
+	BasicBlock *falseBlock = new BasicBlock{ctx.current->label() + "_F"};
 
 	falseBlock->setAttribute(BasicBlock::Attribute::SubBlock);
-	falseBlock->exitType = ctx.current->exitType;
+	falseBlock->setExitType(ctx.current->exitType());
 	falseBlock->returnExprList = ctx.current->returnExprList;
 	falseBlock->condition = ctx.current->condition;
 	falseBlock->nextBlock = ctx.current->nextBlock;
@@ -510,7 +510,7 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 		}
 	};
 
-	ctx.current->exitType = ExitType::Conditional;
+	ctx.current->setExitType(ExitType::Conditional);
 	ctx.current->returnExprList = nullptr;
 	ctx.current->condition = condNode->conditions()[0].get();
 	ctx.current->m_condNode.reset(condNode);

@@ -25,7 +25,7 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 
 	if (m_resultCnt.value_or(0)) {
 		for (BasicBlock *pred : m_cfg->exit()->predecessors) {
-			if (pred->exitType != BasicBlock::ExitType::Return) {
+			if (pred->exitType() != BasicBlock::ExitType::Return) {
 				yy::location fnLoc;
 				if (fnNode.isAnonymous())
 					fnLoc = fnNode.location();
