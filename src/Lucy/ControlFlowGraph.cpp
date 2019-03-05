@@ -48,7 +48,7 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk, Scope &scope)
 		ret->nextBlock[0] = m_exit;
 
 	calcPredecessors();
-	generateTriplets();
+	generateIR();
 	prune();
 }
 
@@ -69,11 +69,10 @@ void ControlFlowGraph::graphvizDump(const char *filename) const
 
 void ControlFlowGraph::irDump(unsigned indent, const char *label) const
 {
-	const std::string indentStr(indent, '\t');
 	if (!label)
 		label = "global scope";
 
-	std::cout << indentStr << '[' << label << "]\n";
+	Logger::indent(std::cout, indent) << '[' << label << "]\n";
 	for (unsigned i = 0; i != m_blocks.size(); ++i) {
 		m_blocks[i]->irDump(indent + 1);
 		if (i + 1 != m_blocks.size())
@@ -89,7 +88,7 @@ void ControlFlowGraph::irDump(unsigned indent, const char *label) const
 			std::cout << '\n';
 	}
 
-	std::cout << indentStr << "[/" << label << "]\n";
+	Logger::indent(std::cout, indent) << "[/" << label << "]\n";
 }
 
 std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx, const AST::Chunk &chunk)
@@ -123,7 +122,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 	}
 
 	for (const auto &insn : chunk.children()) {
-		if (current->exitType != BasicBlock::ExitType::Fallthrough) {
+		if (current->exitType() != BasicBlock::ExitType::Fallthrough) {
 			LOG(Logger::Error, insn->location() << " : dangling statements after block exit\n");
 			break;
 		}
@@ -131,7 +130,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 		switch (insn->type().value()) {
 			case AST::Node::Type::Break: {
 				auto breakNode = static_cast<const AST::Break *>(insn.get());
-				current->exitType = BasicBlock::ExitType::Break;
+				current->setExitType(BasicBlock::ExitType::Break);
 				ctx.breakBlocks.emplace_back(current, *breakNode);
 				break;
 			}
@@ -175,7 +174,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			}
 			case AST::Node::Type::Return: {
 				auto returnNode = static_cast<const AST::Return *>(insn.get());
-				current->exitType = BasicBlock::ExitType::Return;
+				current->setExitType(BasicBlock::ExitType::Return);
 				ctx.returnBlocks.push_back(current);
 
 				if (!returnNode->empty()) {
@@ -198,7 +197,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 				BasicBlock *previous;
 				for (size_t i = 0; i < cond.size(); ++i) {
-					current->exitType = BasicBlock::ExitType::Conditional;
+					current->setExitType(BasicBlock::ExitType::Conditional);
 					current->condition = cond[i].get();
 
 					process(ctx, *cond[i]);
@@ -233,7 +232,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 				auto previous = current;
 				current = makeBB();
-				current->exitType = BasicBlock::ExitType::Conditional;
+				current->setExitType(BasicBlock::ExitType::Conditional);
 				current->condition = &whileNode->condition();
 				previous->nextBlock[0] = current;
 				previous = current;
@@ -244,6 +243,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				previous->nextBlock[0] = entry;
 				previous->nextBlock[1] = current;
 				exit->nextBlock[0] = previous;
+				exit->setLoopFooter(current);
 				redirectBreaks(current);
 				break;
 			}
@@ -255,14 +255,19 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				current->nextBlock[0] = entry;
 
 				current = makeBB();
-				current->exitType = BasicBlock::ExitType::Conditional;
+				current->setExitType(BasicBlock::ExitType::Conditional);
 				current->condition = &repeatNode->condition();
-				current->nextBlock[1] = entry;
+
+				auto helperBlock = makeBB();
+				current->nextBlock[1] = helperBlock;
+				helperBlock->nextBlock[0] = entry;
+				helperBlock->setAttribute(BasicBlock::Attribute::BackEdge);
 				exit->nextBlock[0] = current;
 
 				auto previous = current;
 				current = makeBB();
 				previous->nextBlock[0] = current;
+				helperBlock->setLoopFooter(current);
 				redirectBreaks(current);
 				break;
 			}
@@ -276,7 +281,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				previous->nextBlock[0] = current;
 
 				auto condition = forNode->cloneCondition();
-				current->exitType = BasicBlock::ExitType::Conditional;
+				current->setExitType(BasicBlock::ExitType::Conditional);
 				current->condition = condition.get();
 				m_additionalNodes.emplace_back(std::move(condition));
 
@@ -290,6 +295,7 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				m_additionalNodes.emplace_back(std::move(step));
 
 				current = makeBB();
+				exit->setLoopFooter(current);
 				previous->nextBlock[1] = current;
 				redirectBreaks(current);
 				break;
@@ -314,7 +320,11 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::Assignment &assignment)
 {
-	process(ctx, assignment.varList());
+	for (const auto &lval : assignment.varList().vars()) {
+		if (lval->lvalueType() != AST::LValue::Type::Name)
+			process(ctx, *lval);
+	}
+
 	process(ctx, assignment.exprList());
 
 	if (assignment.isLocal()) {
@@ -424,10 +434,10 @@ void ControlFlowGraph::calcPredecessors()
 			return;
 		block->phase = m_walkPhase;
 
-		for (unsigned i = 0; i < 2; ++i) {
-			if (block->nextBlock[i]) {
-				block->nextBlock[i]->predecessors.push_back(block);
-				doCalcPredecessors(block->nextBlock[i]);
+		for (BasicBlock *next : block->nextBlock) {
+			if (next) {
+				next->predecessors.push_back(block);
+				doCalcPredecessors(next);
 			}
 		}
 	};
@@ -435,29 +445,34 @@ void ControlFlowGraph::calcPredecessors()
 	doCalcPredecessors(m_entry);
 }
 
-void ControlFlowGraph::generateTriplets()
+void ControlFlowGraph::generateIR()
 {
 	++m_walkPhase;
 
-	std::function <void (BasicBlock *)> doGenerateTriplets = [this, &doGenerateTriplets](BasicBlock *block)
+	std::function <void (BasicBlock *)> doGenerateIR = [this, &doGenerateIR](BasicBlock *block)
 	{
 		if (!block || block->phase == m_walkPhase)
 			return;
 		block->phase = m_walkPhase;
 
-		block->generateTriplets();
+		block->generateIR();
 		for (BasicBlock *next : block->nextBlock)
-			doGenerateTriplets(next);
+			doGenerateIR(next);
 	};
 
-	doGenerateTriplets(m_entry);
+	doGenerateIR(m_entry);
 }
 
 void ControlFlowGraph::prune()
 {
 	++m_walkPhase;
 
-	std::function <void (BasicBlock *)> doPrune = [this, &doPrune](BasicBlock *block)
+	auto canPrune = [this](const BasicBlock *block)
+	{
+		return block && block != m_exit && block != m_entry && block->canPrune();
+	};
+
+	std::function <void (BasicBlock *)> doPrune = [this, &canPrune, &doPrune](BasicBlock *block)
 	{
 		if (!block || block->phase == m_walkPhase)
 			return;
@@ -465,7 +480,7 @@ void ControlFlowGraph::prune()
 
 		for (unsigned int i = 0; i < 2; ++i) {
 			BasicBlock *next = block->nextBlock[i];
-			while (next && next->isEmpty() && next != m_exit) {
+			while (canPrune(next)) {
 				assert(!next->nextBlock[1]);
 
 				BasicBlock *subNext = next->nextBlock[0];
@@ -494,7 +509,7 @@ void ControlFlowGraph::prune()
 
 	size_t idx = 0;
 	while (idx < m_blocks.size()) {
-		if (m_blocks[idx].get() != m_entry && m_blocks[idx].get() != m_exit && m_blocks[idx]->isEmpty()) {
+		if (canPrune(m_blocks[idx].get())) {
 			m_blocks[idx] = std::move(m_blocks.back());
 			m_blocks.pop_back();
 		} else {
@@ -599,20 +614,20 @@ void ControlFlowGraph::graphvizDump(std::ostream &os) const
 	const std::string CFGPrefix = "CFG_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + '_';
 	auto unique_label = [&CFGPrefix](auto &&block) -> std::string
 	{
-		return CFGPrefix + block->label;
+		return CFGPrefix + block->label();
 	};
 
 	for (const auto &bb : m_blocks) {
 		os << '\t' << unique_label(bb) << " [shape=box";
-		if (!bb->insn.empty() || bb->exitType != BasicBlock::ExitType::Fallthrough) {
-			os << ",label=<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\"><tr><td align=\"left\">//" << bb->label << "</td></tr><hr/>";
+		if (!bb->insn.empty() || bb->exitType() != BasicBlock::ExitType::Fallthrough) {
+			os << ",label=<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\"><tr><td align=\"left\">//" << bb->label() << "</td></tr><hr/>";
 			for (const auto &i : bb->insn) {
 				os << "<tr><td align=\"left\">";
 				i->printCode(os);
 				os << "</td></tr>";
 			}
 
-			switch (bb->exitType) {
+			switch (bb->exitType()) {
 				case BasicBlock::ExitType::Conditional: {
 					if (!bb->insn.empty())
 						os << "<hr/>";
@@ -642,15 +657,20 @@ void ControlFlowGraph::graphvizDump(std::ostream &os) const
 		}
 		os << "];\n";
 
-		if (bb->exitType == BasicBlock::ExitType::Conditional) {
+		if (bb->exitType() == BasicBlock::ExitType::Conditional) {
 			auto [trueBlock, falseBlock] = std::make_tuple(bb->nextBlock[0], bb->nextBlock[1]);
 			os << '\t' << unique_label(bb) << " -> " << unique_label(trueBlock) << " [label=\"true\",labelangle=45];\n";
 			os << '\t' << unique_label(bb) << " -> " << unique_label(falseBlock) << " [label=\"false\",labeldistance=2.0];\n";
 		} else {
 			assert(!bb->nextBlock[1]);
-			for (unsigned i = 0; i < 2; ++i) {
-				if (auto b = bb->nextBlock[i]; b)
-					os << '\t' << unique_label(bb) << " -> " << unique_label(b) << ";\n";
+			if (auto next = bb->nextBlock[0]; next) {
+				os << '\t' << unique_label(bb) << " -> " << unique_label(next);
+				if (bb->attribute(BasicBlock::Attribute::BackEdge)) {
+					assert(bb->loopFooter());
+					os << " [color=blue];\n";
+					os << '\t' << unique_label(bb) << " -> " << unique_label(bb->loopFooter()) << " [style=dashed,color=blue]";
+				}
+				os << ";\n";
 			}
 		}
 

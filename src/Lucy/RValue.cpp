@@ -17,6 +17,8 @@ std::ostream & operator << (std::ostream &os, const RValue &rval)
 					os << "function " << arg;
 				else if constexpr(std::is_same_v<T, TableReference>)
 					os << *arg.first << '[' << *arg.second << ']';
+				else if constexpr(std::is_same_v<T, bool>)
+					os << std::boolalpha << arg << std::noboolalpha;
 				else
 					os << arg;
 			}, std::get<RValue::Type::Immediate>(rval.valueRef));

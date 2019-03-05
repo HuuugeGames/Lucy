@@ -1,6 +1,9 @@
 #pragma once
 
-enum class ValueType : unsigned int {
+#include <cstdint>
+#include "EnumHelpers.hpp"
+
+EnumClass(ValueType, uint8_t,
 	Invalid,
 	Unknown,
 	Nil,
@@ -9,6 +12,5 @@ enum class ValueType : unsigned int {
 	Real,
 	String,
 	Table,
-	Function,
-	_last
-};
+	Function
+);

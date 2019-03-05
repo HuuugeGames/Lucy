@@ -15,9 +15,11 @@ Logger::Logger()
 	setFlag(Check::GlobalStore_GlobalScope);
 	unsetFlag(Check::GlobalStore_Underscore);
 	setFlag(Check::GlobalStore_UpperCase);
+
+	setFlag(Check::ShadowingDefinition);
 }
 
-bool Logger::dispatch(Check c)
+bool Logger::isEnabled(Check c)
 {
 	return instance().m_flags.get(c.value());
 }

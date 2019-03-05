@@ -12,11 +12,12 @@ add_executable(${PROJECT_NAME}
 	ControlFlowGraph.cpp
 	Driver.cpp
 	Function.cpp
+	IR.cpp
+	IROp.cpp
 	Logger.cpp
 	Preprocessor.cpp
 	RValue.cpp
 	Scope.cpp
-	Triplet.cpp
 	VarAccess.cpp
 
 	main.cpp

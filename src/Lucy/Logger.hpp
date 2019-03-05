@@ -17,7 +17,7 @@ EnumClass(Check, uint32_t,
 	GlobalStore_GlobalScope,
 	GlobalStore_Underscore,
 	GlobalStore_UpperCase,
-	_last
+	ShadowingDefinition
 );
 
 class Logger {
@@ -31,13 +31,20 @@ public:
 
 	static void enable(Check c) { instance().setFlag(c); }
 	static void disable(Check c) { instance().unsetFlag(c); }
-	static bool dispatch(Check c);
+	static bool isEnabled(Check c);
 
 	static std::ostream & log() { return *instance().m_output; }
 	static unsigned threshold() { return instance().m_threshold; }
 	static void setOutput(const std::string &filename);
 	static void setOutput(std::ostream &os) { instance().m_output = &os; }
 	static void setThreshold(unsigned threshold) { instance().m_threshold = threshold; }
+
+	static std::ostream & indent(std::ostream &os, unsigned level)
+	{
+		for (unsigned i = 0; i != level; ++i)
+			os << '\t';
+		return os;
+	}
 
 private:
 	Logger();
@@ -50,7 +57,7 @@ private:
 	void setFlag(Check c) { m_flags.set(c.value()); }
 	void unsetFlag(Check c) { m_flags.unset(c.value()); }
 
-	Bitfield <Check::_last> m_flags;
+	Bitfield <Check::_size> m_flags;
 	std::ostream *m_output = &std::cerr;
 	unsigned m_threshold = std::numeric_limits<unsigned>::max();
 };
@@ -63,7 +70,7 @@ private:
 
 #define REPORT(check, msg) \
 	do { \
-		if (Logger::dispatch(check)) \
+		if (Logger::isEnabled(check)) \
 			Logger::log() << '[' << Check{check} << "] " << msg; \
 	} while (false)
 

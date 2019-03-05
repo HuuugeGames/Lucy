@@ -41,8 +41,7 @@ public:
 		While,
 		Repeat,
 		For,
-		ForEach,
-		_last
+		ForEach
 	);
 
 	virtual void print(unsigned indent = 0) const
@@ -1088,7 +1087,7 @@ private:
 
 class BinOp : public Node {
 public:
-	enum class Type : unsigned {
+	EnumClass(Type, unsigned,
 		Or,
 		And,
 		Equal,
@@ -1103,9 +1102,8 @@ public:
 		Times,
 		Divide,
 		Modulo,
-		Exponentation,
-		_last
-	};
+		Exponentation
+	);
 
 	BinOp(Type t, Node *left, Node *right, const yy::location &location = yy::location{})
 		: Node{location}, m_type{t}, m_left{left}, m_right{right}
@@ -1115,17 +1113,17 @@ public:
 	static const std::vector <ValueType> & applicableTypes(Type t)
 	{
 		static auto ApplicableTypes = []{
-			std::array <std::vector <ValueType>, toUnderlying(Type::_last)> result;
+			std::array <std::vector <ValueType>, Type::_size> result;
 
 			for (auto v : {Type::Plus, Type::Minus, Type::Times, Type::Divide})
-				result[toUnderlying(v)] = {ValueType::Integer, ValueType::Real};
+				result[v] = {ValueType::Integer, ValueType::Real};
 
-			result[toUnderlying(Type::Modulo)] = {ValueType::Integer};
+			result[Type::Modulo] = {ValueType::Integer};
 
 			return result;
 		}();
 
-		return ApplicableTypes[toUnderlying(t)];
+		return ApplicableTypes[t.value()];
 	}
 
 	static bool isApplicable(Type t, ValueType vt)
@@ -1137,13 +1135,13 @@ public:
 	static const char * toHtmlString(Type t)
 	{
 		static const char *s[] = {"or", "and", "==", "~=", "&lt;", "&lt;=", "&gt;", "&gt;=", "..", "+", "-", "*", "/", "%", "^"};
-		return s[toUnderlying(t)];
+		return s[t.value()];
 	}
 
 	static const char * toString(Type t)
 	{
 		static const char *s[] = {"or", "and", "==", "~=", "<", "<=", ">", ">=", "..", "+", "-", "*", "/", "%", "^"};
-		return s[toUnderlying(t)];
+		return s[t.value()];
 	}
 
 	Type binOpType() const { return m_type; }
@@ -1193,12 +1191,11 @@ private:
 
 class UnOp : public Node {
 public:
-	enum class Type {
+	EnumClass(Type, unsigned,
 		Negate,
 		Not,
-		Length,
-		_last
-	};
+		Length
+	);
 
 	UnOp(Type t, Node *op, const yy::location &location = yy::location{})
 		: Node{location}, m_type{t}, m_operand{op}
@@ -1208,7 +1205,7 @@ public:
 	static const char * toString(Type t)
 	{
 		static const char *s[] = {"-", "not", "#"};
-		return s[toUnderlying(t)];
+		return s[t.value()];
 	}
 
 	Type unOpType() const { return m_type; }
@@ -1722,7 +1719,7 @@ public:
 		};
 
 		const Value *v = static_cast<const Value *>(m_step.get());
-		BinOp::Type op = BinOp::Type::_last;
+		BinOp::Type op = BinOp::Type::_size;
 
 		if (v->valueType() == ValueType::Integer) {
 			op = binopType(static_cast<const IntValue *>(v)->value());
@@ -1730,7 +1727,7 @@ public:
 			op = binopType(static_cast<const RealValue *>(v)->value());
 		}
 
-		assert(op != BinOp::Type::_last);
+		assert(op != BinOp::Type::_size);
 		return std::unique_ptr <BinOp>{new BinOp{op, new LValue{iterator()}, limitExpr().clone().release()}};
 	}
 

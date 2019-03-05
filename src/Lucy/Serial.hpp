@@ -10,10 +10,9 @@ public:
 	static const UID MinUid = 1;
 
 	Serial() : nextUid{MinUid} {}
-	UID next()
-	{
-		return nextUid++;
-	}
+
+	UID next() { return nextUid++; }
+	void reset() { nextUid = MinUid; }
 
 private:
 	UID nextUid;

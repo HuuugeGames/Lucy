@@ -6,12 +6,14 @@
 #include <vector>
 
 #include "AST_fwd.hpp"
+#include "Bitfield.hpp"
+#include "EnumHelpers.hpp"
+#include "IR.hpp"
 #include "RValue.hpp"
 #include "Serial.hpp"
 
 class ControlFlowGraph;
 class Scope;
-class Triplet;
 
 struct BasicBlock {
 	enum class ExitType {
@@ -20,6 +22,12 @@ struct BasicBlock {
 		Break,
 		Return,
 	};
+
+	EnumClass(Attribute, uint8_t,
+		BackEdge,
+		LoopFooter,
+		SubBlock
+	);
 
 	BasicBlock(UID id);
 	BasicBlock(const std::string &label);
@@ -30,19 +38,33 @@ struct BasicBlock {
 	~BasicBlock();
 
 	void irDump(unsigned indent = 0) const;
+
+	const std::string & label() const { return m_label; }
+	void setLabel(const std::string &label) { m_label = label; }
+	void setLabel(std::string &&label) { m_label = std::move(label); }
+
+	ExitType exitType() const { return m_exitType; }
+	void setExitType(ExitType et) { m_exitType = et; }
+
+	bool attribute(Attribute attrib) const { return static_cast<bool>(m_attrib.get(attrib.value())); }
+	void setAttribute(Attribute attrib) { m_attrib.set(attrib.value()); }
+
+	bool canPrune() const;
 	bool isEmpty() const;
-	void generateTriplets();
+	void generateIR();
 	void removePredecessor(BasicBlock *block);
 
-	std::string label;
+	const BasicBlock * loopFooter() const { return m_loopFooterEdge; }
+	void setLoopFooter(BasicBlock *dst);
+
 	std::vector <const AST::Node *> insn;
-	std::vector <std::unique_ptr <Triplet> > tripletCode;
-	ExitType exitType = ExitType::Fallthrough;
+	std::vector <std::unique_ptr <IR::Triplet> > irCode;
 
 	const AST::Node *returnExprList = nullptr;
 	const AST::Node *condition = nullptr;
 	std::array <BasicBlock *, 2> nextBlock = {nullptr, nullptr};
 	std::vector <BasicBlock *> predecessors;
+
 	unsigned phase = 0;
 
 	Scope *scope = nullptr;
@@ -67,6 +89,10 @@ private:
 
 	static void splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST::BinOp &binOp);
 
+	std::string m_label;
+	ExitType m_exitType = ExitType::Fallthrough;
+	Bitfield <Attribute::_size> m_attrib;
 	std::unique_ptr <const AST::If> m_condNode;
 	std::array <std::unique_ptr <BasicBlock>, 2> m_subBlocks;
+	BasicBlock *m_loopFooterEdge = nullptr;
 };

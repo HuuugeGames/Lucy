@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <optional>
+#include <ostream>
 #include <string_view>
 #include <type_traits>
 #include "StringPack.hpp"
@@ -27,7 +28,7 @@ constexpr typename std::underlying_type <ET>::type & toUnderlyingRef(ET &et)
 		} \
 	public: \
 		enum EnumName ## __Internal : EnumType { \
-			__VA_ARGS__ \
+			__VA_ARGS__, _size \
 		}; \
 		constexpr EnumName(EnumName ## __Internal value) : m_value{value} {} \
 		constexpr explicit EnumName(EnumType value) : m_value{value} {} \
