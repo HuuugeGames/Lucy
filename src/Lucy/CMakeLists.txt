@@ -13,6 +13,7 @@ add_executable(${PROJECT_NAME}
 	Driver.cpp
 	Function.cpp
 	IR.cpp
+	IROp.cpp
 	Logger.cpp
 	Preprocessor.cpp
 	RValue.cpp

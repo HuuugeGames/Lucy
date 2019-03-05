@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iosfwd>
+
 namespace IR {
 
 enum class Op : unsigned {
@@ -38,6 +40,9 @@ enum class Op : unsigned {
 	Test,
 	Jump,
 	JumpTrue,
+	_last
 };
 
 } //namespace IR
+
+std::ostream & operator << (std::ostream &os, IR::Op op);

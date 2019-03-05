@@ -63,13 +63,11 @@ BasicBlock::~BasicBlock() = default;
 
 void BasicBlock::irDump(unsigned indent) const
 {
-	const std::string indentStr(indent, '\t');
-
-	std::cout << indentStr << '[' << label << "]\n";
+	Logger::indent(std::cout, indent) << '[' << label << "]\n";
 	for (const auto &t : irCode)
-		std::cout << '\t' << indentStr << *t << '\n';
+		Logger::indent(std::cout, indent + 1) << *t << '\n';
 
-	std::cout << indentStr << "[/" << label << "]\n";
+	Logger::indent(std::cout, indent) << "[/" << label << "]\n";
 
 	if (m_condNode) {
 		std::cout << '\n';

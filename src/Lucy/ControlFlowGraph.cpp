@@ -69,11 +69,10 @@ void ControlFlowGraph::graphvizDump(const char *filename) const
 
 void ControlFlowGraph::irDump(unsigned indent, const char *label) const
 {
-	const std::string indentStr(indent, '\t');
 	if (!label)
 		label = "global scope";
 
-	std::cout << indentStr << '[' << label << "]\n";
+	Logger::indent(std::cout, indent) << '[' << label << "]\n";
 	for (unsigned i = 0; i != m_blocks.size(); ++i) {
 		m_blocks[i]->irDump(indent + 1);
 		if (i + 1 != m_blocks.size())
@@ -89,7 +88,7 @@ void ControlFlowGraph::irDump(unsigned indent, const char *label) const
 			std::cout << '\n';
 	}
 
-	std::cout << indentStr << "[/" << label << "]\n";
+	Logger::indent(std::cout, indent) << "[/" << label << "]\n";
 }
 
 std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx, const AST::Chunk &chunk)
@@ -424,10 +423,10 @@ void ControlFlowGraph::calcPredecessors()
 			return;
 		block->phase = m_walkPhase;
 
-		for (unsigned i = 0; i < 2; ++i) {
-			if (block->nextBlock[i]) {
-				block->nextBlock[i]->predecessors.push_back(block);
-				doCalcPredecessors(block->nextBlock[i]);
+		for (BasicBlock *next : block->nextBlock) {
+			if (next) {
+				next->predecessors.push_back(block);
+				doCalcPredecessors(next);
 			}
 		}
 	};
@@ -439,7 +438,7 @@ void ControlFlowGraph::generateIR()
 {
 	++m_walkPhase;
 
-	std::function <void (BasicBlock *)> doGenerateTriplets = [this, &doGenerateTriplets](BasicBlock *block)
+	std::function <void (BasicBlock *)> doGenerateIR = [this, &doGenerateIR](BasicBlock *block)
 	{
 		if (!block || block->phase == m_walkPhase)
 			return;
@@ -447,10 +446,10 @@ void ControlFlowGraph::generateIR()
 
 		block->generateIR();
 		for (BasicBlock *next : block->nextBlock)
-			doGenerateTriplets(next);
+			doGenerateIR(next);
 	};
 
-	doGenerateTriplets(m_entry);
+	doGenerateIR(m_entry);
 }
 
 void ControlFlowGraph::prune()

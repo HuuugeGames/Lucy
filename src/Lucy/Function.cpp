@@ -39,7 +39,6 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 
 void Function::irDump(unsigned indent)
 {
-	const std::string indentStr(indent, '\t');
 	std::ostringstream ss;
 	ss << m_fnNode.fullName();
 	if (m_fnNode.isAnonymous())

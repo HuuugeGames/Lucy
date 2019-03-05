@@ -15,13 +15,15 @@ namespace IR {
 struct RValue {
 	EnumClass(Type, unsigned, Immediate, LValue, Temporary);
 
+	static const AST::LValue * getTemporary(unsigned idx);
+	static RValue nil() { return ValueVariant{nullptr}; }
+
 	RValue() = default;
 	RValue(const ValueVariant &imm) : valueRef{imm} {}
 	RValue(const AST::LValue *lval) : valueRef{lval} {}
 	RValue(const IR::Triplet *temp) : valueRef{temp} {}
 
-	static const AST::LValue * getTemporary(unsigned idx);
-	static RValue nil() { return ValueVariant{nullptr}; }
+	Type type() const { return static_cast<Type>(valueRef.index()); }
 
 	std::variant <ValueVariant, const AST::LValue *, const IR::Triplet *> valueRef;
 };

@@ -39,6 +39,13 @@ public:
 	static void setOutput(std::ostream &os) { instance().m_output = &os; }
 	static void setThreshold(unsigned threshold) { instance().m_threshold = threshold; }
 
+	static std::ostream & indent(std::ostream &os, unsigned level)
+	{
+		for (unsigned i = 0; i != level; ++i)
+			os << '\t';
+		return os;
+	}
+
 private:
 	Logger();
 	Logger(const Logger &) = delete;

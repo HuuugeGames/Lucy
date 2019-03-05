@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <optional>
+#include <ostream>
 #include <string_view>
 #include <type_traits>
 #include "StringPack.hpp"
