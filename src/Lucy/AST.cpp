@@ -7,7 +7,6 @@ namespace {
 namespace AST {
 
 const Chunk Chunk::Empty;
-const ParamList ParamList::Empty;
 
 const std::string & LValue::resolveName() const
 {

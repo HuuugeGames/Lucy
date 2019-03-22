@@ -325,7 +325,7 @@ FUNCTION function_body {
 
 function_body :
 LPAREN RPAREN function_body_block[block] {
-	$$ = new AST::Function{nullptr, $block, @$};
+	$$ = new AST::Function{new AST::ParamList{}, $block, @$};
 }
 | LPAREN param_list RPAREN function_body_block[block] {
 	$$ = new AST::Function{$param_list, $block, @$};

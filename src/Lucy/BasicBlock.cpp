@@ -260,8 +260,9 @@ void BasicBlock::process(BBContext &ctx, const AST::BinOp &binOp)
 
 void BasicBlock::process(BBContext &ctx, const AST::Ellipsis &ellipsis)
 {
-	//TODO don't crash for now, think about implementing properly in the future
-	//perhaps a simple rewrite to an arg{} array will suffice
+	auto tmp = ctx.getTemporary();
+	ctx.emplaceTriplet(new IR::Triplet{IR::Op::Assign, tmp, ValueVariant{std::string{"arg"}}});
+	ctx.stack.push_back(tmp);
 }
 
 void BasicBlock::process(BBContext &ctx, const AST::ExprList &exprList)

@@ -155,8 +155,6 @@ private:
 class ParamList : public Node {
 	friend class Function;
 public:
-	static const ParamList Empty;
-
 	ParamList(const yy::location &location = yy::location{}) : Node{location}, m_ellipsis{false} {}
 
 	void append(const std::string &name, const yy::location &location = yy::location{})
@@ -1385,7 +1383,9 @@ public:
 	bool isLocal() const { return m_local; }
 	bool isMethod() const { return m_name && m_name->isMethod(); }
 	bool isNested() const { return m_name && m_name->isNested(); }
+	bool isVariadic() const { return m_params->hasEllipsis(); }
 	const FunctionName & name() const { return *m_name; }
+	const ParamList & paramList() const { return *m_params; }
 
 	void setLocal() { m_local = true; }
 
@@ -1399,8 +1399,6 @@ public:
 	void clearName()
 	{
 		if (m_name->isMethod()) {
-			if (!m_params)
-				m_params = std::make_unique<ParamList>();
 			m_params->m_names.insert(m_params->m_names.begin(), std::make_pair("self", yy::location{}));
 		}
 		m_name.reset();
@@ -1431,12 +1429,7 @@ public:
 
 		do_indent(indent);
 		std::cout << "params:\n";
-		if (m_params) {
-			m_params->print(indent + 1);
-		} else {
-			do_indent(indent + 1);
-			std::cout << "<no params>\n";
-		}
+		m_params->print(indent + 1);
 
 		do_indent(indent);
 		std::cout << "body:\n";
@@ -1463,8 +1456,6 @@ public:
 
 	const ParamList & params() const
 	{
-		if (!m_params)
-			return ParamList::Empty;
 		return *m_params;
 	}
 

@@ -21,21 +21,27 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 		}
 	}
 
+	if (fnNode.isVariadic()) {
+		if (!m_fnScope.addFunctionParam("arg")) {
+			REPORT(Check::Function_DuplicateParam, fnNode.paramList().location() << " : parameter \"arg\" is shadowed by \"...\"\n");
+		}
+	}
+
 	m_cfg = std::make_unique<ControlFlowGraph>(fnNode.chunk(), m_fnScope);
 
 	if (m_resultCnt.value_or(0)) {
 		for (BasicBlock *pred : m_cfg->exit()->predecessors) {
 			if (pred->exitType() != BasicBlock::ExitType::Return) {
-				yy::location fnLoc;
-				if (fnNode.isAnonymous())
-					fnLoc = fnNode.location();
-				else
-					fnLoc = fnNode.name().location();
-				REPORT(Check::Function_VariableResultCount, fnLoc << " : function " << fnNode.fullName() << " might fall-through without returning any result\n");
+				REPORT(Check::Function_VariableResultCount, fnNode.paramList().location() << " : function " << fnNode.fullName() << " might fall-through without returning any result\n");
 				break;
 			}
 		}
 	}
+}
+
+bool Function::isVariadic() const
+{
+	return m_fnNode.isVariadic();
 }
 
 void Function::irDump(unsigned indent)

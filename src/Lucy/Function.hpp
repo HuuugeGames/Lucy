@@ -11,6 +11,8 @@ class Function {
 public:
 	Function(const AST::Function &fnNode, Scope &scope);
 
+	bool isVariadic() const;
+
 	const ControlFlowGraph & cfg() const { return *m_cfg; }
 	void irDump(unsigned indent = 0);
 	Scope & scope() { return m_fnScope; }
