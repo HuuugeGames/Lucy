@@ -18,16 +18,18 @@ public:
 	~Scope();
 
 	Function * function() { return m_function; }
-	const std::vector <std::string> & functionParams() const { return m_fnParams; }
+	const auto & functionParams() const { return m_fnParams; }
 
 	Scope * functionScope();
 	Scope * parent() { return m_parent; }
 	Scope * push();
 
-	bool addFunctionParam(const std::string &name);
+	bool addFunctionParam(const std::string &name, const yy::location &location);
 	void addLoad(const AST::LValue &var);
 	void addLocalStore(const AST::LValue &var);
 	void addVarAccess(const AST::LValue &var, VarAccess::Type type);
+
+	void reportUnusedFnParams() const;
 
 private:
 	Scope *m_parent = nullptr;
@@ -35,5 +37,14 @@ private:
 	std::vector <std::unique_ptr <Scope> > m_children;
 	std::vector <std::unique_ptr <VarAccess> > m_rwOps;
 
-	std::vector <std::string> m_fnParams;
+	struct FnParam {
+		FnParam(const std::string &name, const yy::location &location) : name{name}, location{location} {}
+
+		std::string name;
+		yy::location location;
+		bool used = false;
+		bool synthetic = false;
+	};
+
+	std::vector <FnParam> m_fnParams;
 };

@@ -10,10 +10,10 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 		REPORT(Check::GlobalFunctionDefinition, fnNode.name().location() << " : function definition in global scope: " << fnNode.fullName() << '\n');
 
 	if (fnNode.isMethod())
-		m_fnScope.addFunctionParam("self");
+		m_fnScope.addFunctionParam("self", yy::location{});
 
 	for (const auto &param : fnNode.params().names()) {
-		if (!m_fnScope.addFunctionParam(param.first)) {
+		if (!m_fnScope.addFunctionParam(param.first, param.second)) {
 			if (param.first != "self")
 				REPORT(Check::Function_DuplicateParam, param.second << " : duplicate function parameter: " << param.first << '\n');
 			else
@@ -22,7 +22,7 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	}
 
 	if (fnNode.isVariadic()) {
-		if (!m_fnScope.addFunctionParam("arg")) {
+		if (!m_fnScope.addFunctionParam("arg", yy::location{})) {
 			REPORT(Check::Function_DuplicateParam, fnNode.paramList().location() << " : parameter \"arg\" is shadowed by \"...\"\n");
 		}
 	}

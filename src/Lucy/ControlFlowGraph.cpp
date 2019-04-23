@@ -50,6 +50,8 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk, Scope &scope)
 	calcPredecessors();
 	generateIR();
 	prune();
+
+	scope.reportUnusedFnParams();
 }
 
 ControlFlowGraph::~ControlFlowGraph() = default;

@@ -25,12 +25,14 @@ Scope * Scope::push()
 	return m_children.back().get();
 }
 
-bool Scope::addFunctionParam(const std::string &name)
+bool Scope::addFunctionParam(const std::string &name, const yy::location &location)
 {
-	if (std::find(m_fnParams.begin(), m_fnParams.end(), name) != m_fnParams.end())
+	if (std::find_if(m_fnParams.begin(), m_fnParams.end(), [&name](const auto &param) { return param.name == name; }) != m_fnParams.end())
 		return false;
 
-	m_fnParams.push_back(name);
+	m_fnParams.emplace_back(name, location);
+	if (location == yy::location{})
+		m_fnParams.back().synthetic = true;
 	return true;
 }
 
@@ -75,23 +77,27 @@ void Scope::addVarAccess(const AST::LValue &var, VarAccess::Type type)
 			}
 		}
 
-		if (!originScope) {
-			for (const auto &param : currentScope->m_fnParams) {
-				if (resolvedName == param) {
+		if (originScope)
+			break;
+
+		Scope *next = currentScope->parent();
+		if (next && next->functionScope() != currentScope->functionScope()) {
+			for (auto &param : currentScope->m_fnParams) {
+				if (resolvedName == param.name) {
 					if (!closure)
 						storage = VarAccess::Storage::Local;
 					else
 						storage = VarAccess::Storage::Upvalue;
 
+					param.used = true;
 					originScope = currentScope;
 					break;
 				}
 			}
+
+			closure = true;
 		}
 
-		Scope *next = currentScope->parent();
-		if (next && next->functionScope() != currentScope->functionScope())
-			closure = true;
 		currentScope = next;
 	}
 
@@ -111,4 +117,19 @@ void Scope::addVarAccess(const AST::LValue &var, VarAccess::Type type)
 	}
 
 	m_rwOps.emplace_back(new VarAccess{var, type, storage, origin});
+}
+
+void Scope::reportUnusedFnParams() const
+{
+	for (const auto &param : m_fnParams) {
+		if (!param.used && !param.synthetic) {
+			Check check = Check::Function_UnusedParam;
+			if (param.name == "_")
+				check = Check::Function_UnusedParamUnderscore;
+			REPORT(check, param.location << " : unused parameter: " << param.name << '\n');
+		}
+	}
+
+	for (const auto &subScope : m_children)
+		subScope->reportUnusedFnParams();
 }
