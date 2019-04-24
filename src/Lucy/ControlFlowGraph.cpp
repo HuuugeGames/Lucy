@@ -154,6 +154,10 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				break;
 			}
 			case AST::Node::Type::FunctionCall: {
+				auto prev = current;
+				current = makeBB();
+				prev->nextBlock[0] = current;
+
 				auto fnCallNode = static_cast<const AST::FunctionCall *>(insn.get());
 				process(ctx, *fnCallNode);
 				current->insn.push_back(insn.get());
