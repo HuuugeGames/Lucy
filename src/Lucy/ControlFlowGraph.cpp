@@ -153,13 +153,6 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 				current->insn.push_back(insn.get());
 				break;
 			}
-			case AST::Node::Type::MethodCall: {
-				auto methodCallNode = static_cast<const AST::MethodCall *>(insn.get());
-				process(ctx, *methodCallNode);
-				const auto &fnCallNode = rewrite(ctx, *methodCallNode);
-				current->insn.push_back(&fnCallNode);
-				break;
-			}
 			case AST::Node::Type::FunctionCall: {
 				auto fnCallNode = static_cast<const AST::FunctionCall *>(insn.get());
 				process(ctx, *fnCallNode);
