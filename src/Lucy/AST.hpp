@@ -722,6 +722,7 @@ public:
 
 	void printCode(std::ostream &os) const override
 	{
+		os << '"';
 		for (char c : m_value) {
 			switch (c) {
 				case '<': os << "&lt;"; break;
@@ -730,6 +731,7 @@ public:
 				default: os << c;
 			}
 		}
+		os << '"';
 	}
 
 	ValueType valueType() const override { return ValueType::String; }
