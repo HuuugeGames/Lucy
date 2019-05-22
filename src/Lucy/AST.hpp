@@ -201,9 +201,9 @@ public:
 			return;
 		}
 
-		os << "( " << m_names[0].second;
+		os << "( " << m_names[0].first;
 		for (size_t i = 1; i < m_names.size(); ++i)
-			os << ", " << m_names[i].second;
+			os << ", " << m_names[i].first;
 		os << " )";
 	}
 
