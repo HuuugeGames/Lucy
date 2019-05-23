@@ -367,7 +367,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::LValue &lval)
 			break;
 		case AST::LValue::Type::Bracket:
 			process(ctx, lval.keyExpr());
-			[[fallthrough]]
+			[[fallthrough]];
 		case AST::LValue::Type::Dot:
 			process(ctx, lval.tableExpr());
 			break;
