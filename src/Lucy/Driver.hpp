@@ -23,15 +23,19 @@ public:
 	void nextLine();
 	void step();
 
+	void setErrorStream(std::ostream *os) { m_errorStream = os; }
 	void setInputFile(const char *filename);
 	void setInputFile(const std::string &filename) { setInputFile(filename.c_str()); }
 
 private:
+	void logError(const std::string &msg);
+
 	Preprocessor m_preprocessor;
 	yy::Parser m_parser;
 	Scanner m_scanner;
 	std::istream m_inputStream;
 	std::ifstream m_inputFile;
+	std::ostream *m_errorStream;
 
 	std::vector <std::unique_ptr <AST::Chunk> > m_chunks;
 	std::string m_filename;

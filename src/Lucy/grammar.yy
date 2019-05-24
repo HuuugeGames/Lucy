@@ -5,6 +5,7 @@
 %code requires
 {
 
+#include <sstream>
 #include <string>
 #include <variant>
 
@@ -521,5 +522,7 @@ LBRACKET expr[key] RBRACKET ASSIGN expr[val] {
 
 void yy::Parser::error(const location &loc, const std::string &msg)
 {
-	std::cerr << "Parse error: " << loc << " : " << msg << '\n';
+	std::ostringstream ss;
+	ss << "Parse error: " << loc << " : " << msg << '\n';
+	driver.logError(ss.str());
 }

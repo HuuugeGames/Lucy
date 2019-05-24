@@ -5,7 +5,9 @@
 #include "Logger.hpp"
 
 Driver::Driver()
-	: m_parser{*this}, m_scanner{*this}, m_inputStream{&m_preprocessor}, m_filename{"<stdin>"}, m_position{&m_filename, 1, 1}
+	: m_parser{*this}, m_scanner{*this},
+	  m_inputStream{&m_preprocessor}, m_errorStream{&std::cerr},
+	  m_filename{"<stdin>"}, m_position{&m_filename, 1, 1}
 {
 }
 
@@ -72,4 +74,11 @@ void Driver::setInputFile(const char *filename)
 
 	m_position.initialize(&m_filename);
 	m_preprocessor.setInputFile(m_filename, &m_inputFile);
+}
+
+void Driver::logError(const std::string &msg)
+{
+	if (!m_errorStream)
+		return;
+	*m_errorStream << msg;
 }
