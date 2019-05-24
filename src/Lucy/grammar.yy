@@ -444,7 +444,8 @@ NIL {
 		} else if (v->valueType() == ValueType::Real) {
 			$$ = new AST::RealValue{-static_cast<const AST::RealValue *>(v)->value(), @$};
 		} else {
-			FATAL(@$ << " : Invalid ValueType for unary minus operator\n");
+			error(@$, "Invalid ValueType for unary minus operator");
+			YYABORT;
 		}
 
 		delete $neg;
@@ -520,5 +521,5 @@ LBRACKET expr[key] RBRACKET ASSIGN expr[val] {
 
 void yy::Parser::error(const location &loc, const std::string &msg)
 {
-	FATAL("Parse error: " << loc << " : " << msg << '\n');
+	std::cerr << "Parse error: " << loc << " : " << msg << '\n';
 }
