@@ -76,6 +76,13 @@ void Driver::setInputFile(const char *filename)
 	m_preprocessor.setInputFile(m_filename, &m_inputFile);
 }
 
+void Driver::setInputStream(std::istream *input)
+{
+	m_filename.clear();
+	m_position.initialize();
+	m_preprocessor.setInputStream(input);
+}
+
 void Driver::logError(const std::string &msg)
 {
 	if (!m_errorStream)

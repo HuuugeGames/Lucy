@@ -134,6 +134,12 @@ void Preprocessor::setInputFile(const std::string &filename, std::istream *input
 	m_input = input;
 }
 
+void Preprocessor::setInputStream(std::istream *input)
+{
+	m_position.initialize();
+	m_input = input;
+}
+
 int Preprocessor::underflow()
 {
 	if (!preprocess())

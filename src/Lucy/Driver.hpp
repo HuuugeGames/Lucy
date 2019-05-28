@@ -26,6 +26,7 @@ public:
 	void setErrorStream(std::ostream *os) { m_errorStream = os; }
 	void setInputFile(const char *filename);
 	void setInputFile(const std::string &filename) { setInputFile(filename.c_str()); }
+	void setInputStream(std::istream *input);
 
 private:
 	void logError(const std::string &msg);

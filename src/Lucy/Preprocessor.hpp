@@ -14,6 +14,7 @@ public:
 	const std::string & data() const { return m_data; }
 	bool preprocess();
 	void setInputFile(const std::string &filename, std::istream *input);
+	void setInputStream(std::istream *input);
 
 private:
 	int underflow();
