@@ -71,6 +71,46 @@ ASTGenState generateAST(const std::string &luaCode)
 	return result;
 }
 
+void renderCode(const std::string &code, const yy::location &highlight)
+{
+	if (highlight.begin == highlight.end) {
+		ImGui::TextUnformatted(code.c_str());
+		return;
+	}
+
+	const char *cur = code.c_str(), *end = code.c_str() + code.size();
+	yy::position pos;
+
+	while (pos != highlight.begin) {
+		if (*cur == '\n')
+			pos.lines(1);
+		else
+			++pos.column;
+		++cur;
+	}
+
+	ImGui::TextUnformatted(code.c_str(), cur);
+	ImGui::SameLine(0.0f, 0.0f);
+	const char *highlightBegin = cur;
+	while (pos != highlight.end) {
+		if (*cur == '\n')
+			pos.lines(1);
+		else
+			++pos.column;
+		++cur;
+	}
+
+	ImGui::PushStyleColor(ImGuiCol_Text, 0xff0000ff);
+	ImGui::TextUnformatted(highlightBegin, cur);
+	ImGui::PopStyleColor();
+
+	++cur;
+	if (cur != end) {
+		ImGui::SameLine();
+		ImGui::TextUnformatted(cur, end);
+	}
+}
+
 std::ostream & operator << (std::ostream &os, const ImVec2 &vec)
 {
 	os << '[' << vec.x << ", " << vec.y << ']';
@@ -159,11 +199,10 @@ int main()
 			while (idx < astViews.size()) {
 				auto &ast = astViews[idx];
 				if (ast.show) {
-					ImGui::Begin(ast.windowId.c_str(), &ast.show);
-					ImGui::InputTextMultiline("##source", ast.luaCode.data(), ast.luaCode.size() + 1,
-						ImVec2{-1.0f, ImGui::GetTextLineHeight() * (ast.lines + 1.5f)},
-						ImGuiInputTextFlags_ReadOnly, nullptr, nullptr);
+					static yy::location codeHighlight;
 
+					ImGui::Begin(ast.windowId.c_str(), &ast.show);
+					renderCode(ast.luaCode, codeHighlight);
 					const auto pos = ImGui::GetCursorPos();
 
 					auto *drawList = ImGui::GetWindowDrawList();
@@ -173,14 +212,12 @@ int main()
 					std::vector <ImVec2> nodeCenter;
 
 					drawList->ChannelsSetCurrent(1);
+					codeHighlight.initialize();
 					for (const auto &n : nodes) {
 						ImGui::SetCursorPos(ImVec2{n.r.x, pos.y + n.r.y});
 						ImGui::Button(n.label.c_str());
-						if (ImGui::IsItemHovered()) {
-							std::ostringstream ss;
-							ss << n.codeLocation;
-							ImGui::SetTooltip(ss.str().c_str());
-						}
+						if (ImGui::IsItemHovered())
+							codeHighlight = n.codeLocation;
 
 						auto topLeft = ImGui::GetItemRectMin();
 						auto bottomRight = ImGui::GetItemRectMax();
