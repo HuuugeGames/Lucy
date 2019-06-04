@@ -111,8 +111,6 @@ int main()
 
 	ImGui_ImplSDL2_InitForOpenGL(window, glCtx);
 	ImGui_ImplOpenGL3_Init("#version 130");
-
-	bool show_demo_window = true;
 	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	bool done = false;
@@ -135,9 +133,6 @@ int main()
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL2_NewFrame(window);
 		ImGui::NewFrame();
-
-		if (show_demo_window)
-			ImGui::ShowDemoWindow(&show_demo_window);
 
 		{
 			ImGui::Begin("AST Viewer");
