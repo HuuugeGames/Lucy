@@ -21,11 +21,12 @@ struct ASTGenState {
 	ASTGenState & operator = (ASTGenState &&) = default;
 	~ASTGenState() = default;
 
-	std::string code;
+	std::string luaCode;
 	std::string errorLog;
 	DotGraph graph;
 	std::unique_ptr <AST::Chunk> astRoot;
 	std::string windowId;
+	unsigned lines = 0;
 	bool show = true;
 };
 
@@ -50,7 +51,11 @@ ASTGenState generateAST(const std::string &luaCode)
 	d.setErrorStream(&errorStream);
 
 	ASTGenState result;
-	result.code = luaCode;
+	result.luaCode = luaCode;
+	if (result.luaCode.back() == '\n')
+		result.luaCode.pop_back();
+
+	result.lines = 1 + std::count(result.luaCode.begin(), result.luaCode.end(), '\n');
 
 	if (d.parse() != 0) {
 		result.errorLog = errorStream.str();
@@ -113,7 +118,7 @@ int main()
 	bool done = false;
 	std::string buffer = "a = b + c";
 
-	std::vector <ASTGenState> generatedAst;
+	std::vector <ASTGenState> astViews;
 	std::string astError;
 
 	while (!done) {
@@ -147,18 +152,24 @@ int main()
 				ImGui::Text(astError.data());
 
 			if (ImGui::Button("Generate AST")) {
-				std::cerr << "buffer: " << buffer << '\n';
 				auto ast = generateAST(buffer);
 				astError.clear();
 				if (!ast.errorLog.empty())
 					astError = std::move(ast.errorLog);
 				else if (!ast.astRoot->isEmpty())
-					generatedAst.emplace_back(std::move(ast));
+					astViews.emplace_back(std::move(ast));
 			}
 
-			for (auto &ast : generatedAst) {
+			unsigned idx = 0;
+			while (idx < astViews.size()) {
+				auto &ast = astViews[idx];
 				if (ast.show) {
 					ImGui::Begin(ast.windowId.c_str(), &ast.show);
+					ImGui::InputTextMultiline("##source", ast.luaCode.data(), ast.luaCode.size() + 1,
+						ImVec2{-1.0f, ImGui::GetTextLineHeight() * (ast.lines + 1.5f)},
+						ImGuiInputTextFlags_ReadOnly, nullptr, nullptr);
+
+					const auto pos = ImGui::GetCursorPos();
 
 					auto *drawList = ImGui::GetWindowDrawList();
 					drawList->ChannelsSplit(2);
@@ -168,7 +179,7 @@ int main()
 
 					drawList->ChannelsSetCurrent(1);
 					for (const auto &n : nodes) {
-						ImGui::SetCursorPos(ImVec2{n.r.x, n.r.y});
+						ImGui::SetCursorPos(ImVec2{n.r.x, pos.y + n.r.y});
 						ImGui::Button(n.label.c_str());
 						if (ImGui::IsItemHovered()) {
 							std::ostringstream ss;
@@ -187,6 +198,11 @@ int main()
 
 					drawList->ChannelsMerge();
 					ImGui::End();
+
+					++idx;
+				} else {
+					astViews[idx] = std::move(astViews.back());
+					astViews.pop_back();
 				}
 			}
 
