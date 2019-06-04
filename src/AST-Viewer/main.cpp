@@ -25,7 +25,8 @@ struct ASTGenState {
 	std::string errorLog;
 	DotGraph graph;
 	std::unique_ptr <AST::Chunk> astRoot;
-	bool closed = false;
+	std::string windowId;
+	bool show = true;
 };
 
 int sourceEditCallback(ImGuiInputTextCallbackData *data)
@@ -56,6 +57,10 @@ ASTGenState generateAST(const std::string &luaCode)
 	} else {
 		result.astRoot = std::move(d.chunks()[0]);
 		result.graph.prepare(*result.astRoot);
+
+		std::ostringstream ss;
+		ss << "View##" << result.astRoot.get();
+		result.windowId = ss.str();
 	}
 
 	return result;
@@ -152,9 +157,8 @@ int main()
 			}
 
 			for (auto &ast : generatedAst) {
-				if (!ast.closed) {
-					ImGui::PushID(&ast);
-					ImGui::Begin("view", &ast.closed);
+				if (ast.show) {
+					ImGui::Begin(ast.windowId.c_str(), &ast.show);
 
 					auto *drawList = ImGui::GetWindowDrawList();
 					drawList->ChannelsSplit(2);
@@ -183,7 +187,6 @@ int main()
 
 					drawList->ChannelsMerge();
 					ImGui::End();
-					ImGui::PopID();
 				}
 			}
 
