@@ -95,14 +95,12 @@ ASTGenState generateAST(const std::string &luaCode)
 
 void renderCode(const std::vector <std::string_view> &code, yy::location highlight)
 {
-	const uint32_t White = 0xffffffff; // TODO change to style-related colors
-	const uint32_t Red   = 0xff0000ff;
-
 	auto *drawList = ImGui::GetWindowDrawList();
+	const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
 
 	if (highlight.begin == highlight.end) {
 		for (const auto &s : code) {
-			drawList->AddText(ImGui::GetCursorScreenPos(), White, s.begin(), s.end());
+			drawList->AddText(ImGui::GetCursorScreenPos(), textColor, s.begin(), s.end());
 			ImGui::NewLine();
 		}
 		return;
@@ -114,9 +112,28 @@ void renderCode(const std::vector <std::string_view> &code, yy::location highlig
 	--highlight.end.column;
 	--highlight.end.line;
 
+	struct TextChunk {
+		TextChunk(const std::string_view &text, ImVec2 pos, bool highlight)
+			: text{text}, pos{pos}, size{ImGui::CalcTextSize(text.begin(), text.end())}, highlight{highlight}
+		{
+		}
+
+		TextChunk(const char *begin, const char *end, ImVec2 pos, bool highlight)
+			: text{begin, static_cast<std::string_view::size_type>(end - begin)},
+			  pos{pos}, size{ImGui::CalcTextSize(text.begin(), text.end())}, highlight{highlight}
+		{
+		}
+
+		std::string_view text;
+		ImVec2 pos, size;
+		bool highlight;
+	};
+
+	std::vector <TextChunk> chunks;
+
 	unsigned line = 0;
 	while (line != highlight.begin.line) {
-		drawList->AddText(ImGui::GetCursorScreenPos(), White, code[line].begin(), code[line].end());
+		chunks.emplace_back(code[line], ImGui::GetCursorScreenPos(), false);
 		ImGui::NewLine();
 		++line;
 	}
@@ -126,7 +143,7 @@ void renderCode(const std::vector <std::string_view> &code, yy::location highlig
 		const char *textBegin = code[line].begin();
 		const char *textEnd = textBegin + highlight.begin.column;
 
-		drawList->AddText(cursor, White, textBegin, textEnd);
+		chunks.emplace_back(textBegin, textEnd, cursor, false);
 		cursor.x += ImGui::CalcTextSize(textBegin, textEnd).x;
 	}
 
@@ -138,7 +155,7 @@ void renderCode(const std::vector <std::string_view> &code, yy::location highlig
 		else
 			textEnd = code[line].end();
 
-		drawList->AddText(cursor, Red, textBegin, textEnd);
+		chunks.emplace_back(textBegin, textEnd, cursor, true);
 		cursor.x += ImGui::CalcTextSize(textBegin, textEnd).x;
 	}
 
@@ -146,7 +163,7 @@ void renderCode(const std::vector <std::string_view> &code, yy::location highlig
 		const char *textBegin = code[line].begin() + highlight.end.column;
 		const char *textEnd = code[line].end();
 
-		drawList->AddText(cursor, White, textBegin, textEnd);
+		chunks.emplace_back(textBegin, textEnd, cursor, false);
 	}
 	ImGui::NewLine();
 	++line;
@@ -155,9 +172,8 @@ void renderCode(const std::vector <std::string_view> &code, yy::location highlig
 		const char *textBegin = code[line].begin();
 		const char *textEnd = code[line].end();
 
-		drawList->AddText(ImGui::GetCursorScreenPos(), Red, textBegin, textEnd);
+		chunks.emplace_back(textBegin, textEnd, ImGui::GetCursorScreenPos(), true);
 		ImGui::NewLine();
-
 		++line;
 	}
 
@@ -165,15 +181,15 @@ void renderCode(const std::vector <std::string_view> &code, yy::location highlig
 		const char *textBegin = code[line].begin();
 		const char *textEnd = code[line].begin() + highlight.end.column;
 
+		chunks.emplace_back(textBegin, textEnd, ImGui::GetCursorScreenPos(), true);
 		cursor = ImGui::GetCursorScreenPos();
-		drawList->AddText(cursor, Red, textBegin, textEnd);
 
 		if (highlight.end.column != code[line].size()) {
 			cursor.x += ImGui::CalcTextSize(textBegin, textEnd).x;
 
 			textBegin = textEnd;
 			textEnd = code[line].end();
-			drawList->AddText(cursor, White, textBegin, textEnd);
+			chunks.emplace_back(textBegin, textEnd, cursor, false);
 		}
 
 		ImGui::NewLine();
@@ -181,10 +197,19 @@ void renderCode(const std::vector <std::string_view> &code, yy::location highlig
 	}
 
 	while (line < code.size()) {
-		drawList->AddText(ImGui::GetCursorScreenPos(), White, code[line].begin(), code[line].end());
+		chunks.emplace_back(code[line], ImGui::GetCursorScreenPos(), false);
 		ImGui::NewLine();
 		++line;
 	}
+
+	const auto bgColor = ImGui::GetColorU32(ImGuiCol_TextSelectedBg);
+	for (const auto &chunk : chunks) {
+		if (chunk.highlight)
+			drawList->AddRectFilled(chunk.pos, ImVec2{chunk.pos.x + chunk.size.x, chunk.pos.y + chunk.size.y}, bgColor);
+	}
+
+	for (const auto &chunk : chunks)
+		drawList->AddText(chunk.pos, textColor, chunk.text.begin(), chunk.text.end());
 }
 
 std::ostream & operator << (std::ostream &os, const ImVec2 &vec)
@@ -230,7 +255,7 @@ int main()
 	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	bool done = false;
-	std::string buffer = "a = b + c";
+	std::string buffer = "a = b + c\nx = 2 + 3 * 4";
 
 	std::vector <ASTGenState> astViews;
 	std::string astError;
