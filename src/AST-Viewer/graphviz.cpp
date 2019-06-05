@@ -64,6 +64,7 @@ private:
 	void walk(const AST::BinOp &binOp);
 	void walk(const AST::ExprList &exprList);
 	void walk(const AST::LValue &lval);
+	void walk(const AST::NestedExpr &expr);
 	void walk(const AST::Node &node);
 	void walk(const AST::UnOp &unOp);
 	void walk(const AST::VarList &varList);
@@ -163,6 +164,13 @@ void GraphContext::walk(const AST::LValue &lval)
 	popNode();
 }
 
+void GraphContext::walk(const AST::NestedExpr &expr)
+{
+	pushNode("NestedExpr", expr.location());
+	walk(expr.expr());
+	popNode();
+}
+
 void GraphContext::walk(const AST::Node &node)
 {
 	#define SUBCASE(type) case AST::Node::Type::type: walk(static_cast<const AST::type &>(node)); break
@@ -171,6 +179,7 @@ void GraphContext::walk(const AST::Node &node)
 		SUBCASE(Assignment);
 		SUBCASE(BinOp);
 		SUBCASE(LValue);
+		SUBCASE(NestedExpr);
 		SUBCASE(UnOp);
 		default:
 			pushNode(node.type(), node.location());

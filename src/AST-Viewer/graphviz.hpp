@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 
-// #include "Graph.hpp"
 #include "location.hh"
 
 struct Rect {
