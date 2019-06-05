@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 
 #include "imgui.h"
 #include "imgui_impl_sdl.h"
@@ -12,6 +13,28 @@
 
 #include "Lucy/Driver.hpp"
 #include "graphviz.hpp"
+
+std::ostream & operator << (std::ostream &os, const ImVec2 &vec);
+
+std::vector <std::string_view> split(const std::string &s)
+{
+	std::vector <std::string_view> result;
+
+	std::string::size_type cur = 0, prev = 0;
+	do {
+		cur = s.find('\n', cur);
+
+		if (cur != std::string::npos) {
+			result.emplace_back(&s[prev], cur - prev);
+			++cur;
+			prev = cur;
+		} else {
+			result.emplace_back(&s[prev]);
+		}
+	} while (cur != std::string::npos);
+
+	return result;
+}
 
 struct ASTGenState {
 	ASTGenState() = default;
@@ -22,11 +45,11 @@ struct ASTGenState {
 	~ASTGenState() = default;
 
 	std::string luaCode;
+	std::vector <std::string_view> lines;
 	std::string errorLog;
 	DotGraph graph;
 	std::unique_ptr <AST::Chunk> astRoot;
 	std::string windowId;
-	unsigned lines = 0;
 	bool show = true;
 };
 
@@ -55,8 +78,6 @@ ASTGenState generateAST(const std::string &luaCode)
 	if (result.luaCode.back() == '\n')
 		result.luaCode.pop_back();
 
-	result.lines = 1 + std::count(result.luaCode.begin(), result.luaCode.end(), '\n');
-
 	if (d.parse() != 0) {
 		result.errorLog = errorStream.str();
 	} else {
@@ -66,48 +87,103 @@ ASTGenState generateAST(const std::string &luaCode)
 		std::ostringstream ss;
 		ss << "View##" << result.astRoot.get();
 		result.windowId = ss.str();
+		result.lines = split(result.luaCode);
 	}
 
 	return result;
 }
 
-void renderCode(const std::string &code, const yy::location &highlight)
+void renderCode(const std::vector <std::string_view> &code, yy::location highlight)
 {
+	const uint32_t White = 0xffffffff; // TODO change to style-related colors
+	const uint32_t Red   = 0xff0000ff;
+
+	auto *drawList = ImGui::GetWindowDrawList();
+
 	if (highlight.begin == highlight.end) {
-		ImGui::TextUnformatted(code.c_str());
+		for (const auto &s : code) {
+			drawList->AddText(ImGui::GetCursorScreenPos(), White, s.begin(), s.end());
+			ImGui::NewLine();
+		}
 		return;
 	}
 
-	const char *cur = code.c_str(), *end = code.c_str() + code.size();
-	yy::position pos;
+	//prefer 0-based indexing
+	--highlight.begin.column;
+	--highlight.begin.line;
+	--highlight.end.column;
+	--highlight.end.line;
 
-	while (pos != highlight.begin) {
-		if (*cur == '\n')
-			pos.lines(1);
-		else
-			++pos.column;
-		++cur;
+	unsigned line = 0;
+	while (line != highlight.begin.line) {
+		drawList->AddText(ImGui::GetCursorScreenPos(), White, code[line].begin(), code[line].end());
+		ImGui::NewLine();
+		++line;
 	}
 
-	ImGui::TextUnformatted(code.c_str(), cur);
-	ImGui::SameLine(0.0f, 0.0f);
-	const char *highlightBegin = cur;
-	while (pos != highlight.end) {
-		if (*cur == '\n')
-			pos.lines(1);
-		else
-			++pos.column;
-		++cur;
+	auto cursor = ImGui::GetCursorScreenPos();
+	if (highlight.begin.column != 0) {
+		const char *textBegin = code[line].begin();
+		const char *textEnd = textBegin + highlight.begin.column;
+
+		drawList->AddText(cursor, White, textBegin, textEnd);
+		cursor.x += ImGui::CalcTextSize(textBegin, textEnd).x;
 	}
 
-	ImGui::PushStyleColor(ImGuiCol_Text, 0xff0000ff);
-	ImGui::TextUnformatted(highlightBegin, cur);
-	ImGui::PopStyleColor();
+	{
+		const char *textBegin = code[line].begin() + highlight.begin.column;
+		const char *textEnd;
+		if (highlight.begin.line == highlight.end.line)
+			textEnd = code[line].begin() + highlight.end.column;
+		else
+			textEnd = code[line].end();
 
-	++cur;
-	if (cur != end) {
-		ImGui::SameLine();
-		ImGui::TextUnformatted(cur, end);
+		drawList->AddText(cursor, Red, textBegin, textEnd);
+		cursor.x += ImGui::CalcTextSize(textBegin, textEnd).x;
+	}
+
+	if (highlight.begin.line == highlight.end.line && highlight.end.column != code[line].size()) {
+		const char *textBegin = code[line].begin() + highlight.end.column;
+		const char *textEnd = code[line].end();
+
+		drawList->AddText(cursor, White, textBegin, textEnd);
+	}
+	ImGui::NewLine();
+	++line;
+
+	while (line < highlight.end.line) {
+		const char *textBegin = code[line].begin();
+		const char *textEnd = code[line].end();
+
+		drawList->AddText(ImGui::GetCursorScreenPos(), Red, textBegin, textEnd);
+		ImGui::NewLine();
+
+		++line;
+	}
+
+	if (line == highlight.end.line) {
+		const char *textBegin = code[line].begin();
+		const char *textEnd = code[line].begin() + highlight.end.column;
+
+		cursor = ImGui::GetCursorScreenPos();
+		drawList->AddText(cursor, Red, textBegin, textEnd);
+
+		if (highlight.end.column != code[line].size()) {
+			cursor.x += ImGui::CalcTextSize(textBegin, textEnd).x;
+
+			textBegin = textEnd;
+			textEnd = code[line].end();
+			drawList->AddText(cursor, White, textBegin, textEnd);
+		}
+
+		ImGui::NewLine();
+		++line;
+	}
+
+	while (line < code.size()) {
+		drawList->AddText(ImGui::GetCursorScreenPos(), White, code[line].begin(), code[line].end());
+		ImGui::NewLine();
+		++line;
 	}
 }
 
@@ -189,10 +265,12 @@ int main()
 			if (ImGui::Button("Generate AST")) {
 				auto ast = generateAST(buffer);
 				astError.clear();
-				if (!ast.errorLog.empty())
+				if (!ast.errorLog.empty()) {
 					astError = std::move(ast.errorLog);
-				else if (!ast.astRoot->isEmpty())
+				} else if (!ast.astRoot->isEmpty()) {
 					astViews.emplace_back(std::move(ast));
+					astViews.back().lines = split(astViews.back().luaCode);
+				}
 			}
 
 			unsigned idx = 0;
@@ -202,7 +280,7 @@ int main()
 					static yy::location codeHighlight;
 
 					ImGui::Begin(ast.windowId.c_str(), &ast.show);
-					renderCode(ast.luaCode, codeHighlight);
+					renderCode(ast.lines, codeHighlight);
 					const auto pos = ImGui::GetCursorPos();
 
 					auto *drawList = ImGui::GetWindowDrawList();
