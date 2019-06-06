@@ -10,12 +10,12 @@ std::ostream & operator << (std::ostream &os, const IR::Triplet &t)
 	} else if (t.operation == IR::Op::TableCtor) {
 		os << t.operands[0] << " = {}";
 	} else if (t.operation.value() < AST::BinOp::Type::_size) {
-		os << "tmp_0x" << &t << " = "
+		os << "tmp_" << &t << " = "
 			<< t.operands[0]
 			<< ' ' << AST::BinOp::toString(AST::BinOp::Type{t.operation.value()}) << ' '
 			<< t.operands[1];
 	} else if (t.operation == IR::Op::TableIndex) {
-		os << "tmp_0x" << &t << " = " << t.operands[0] << '[' << t.operands[1] << ']';
+		os << "tmp_" << &t << " = " << t.operands[0] << '[' << t.operands[1] << ']';
 	} else if (t.operation == IR::Op::Push) {
 		os << "push " << t.operands[0];
 	} else if (t.operation == IR::Op::Pop) {
@@ -34,7 +34,7 @@ std::ostream & operator << (std::ostream &os, const IR::Triplet &t)
 	} else if (t.operation == IR::Op::JumpTrue) {
 		os << "jump_true " << t.operands[0];
 	} else { //unary operation
-		os << "tmp_0x" << &t << " = ";
+		os << "tmp_" << &t << " = ";
 		switch (t.operation.value()) {
 			case IR::Op::UnaryNegate: os << '-'; break;
 			case IR::Op::UnaryNot: os << "not "; break;

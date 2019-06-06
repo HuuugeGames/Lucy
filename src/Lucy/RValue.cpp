@@ -30,7 +30,7 @@ std::ostream & operator << (std::ostream &os, const RValue &rval)
 			break;
 		}
 		case RValue::Type::Temporary:
-			os << "tmp_0x" << std::get<RValue::Type::Temporary>(rval.valueRef);
+			os << "tmp_" << std::get<RValue::Type::Temporary>(rval.valueRef);
 			break;
 	}
 

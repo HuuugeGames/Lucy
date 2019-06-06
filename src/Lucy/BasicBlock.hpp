@@ -16,12 +16,12 @@ class ControlFlowGraph;
 class Scope;
 
 struct BasicBlock {
-	enum class ExitType {
+	EnumClass(ExitType, uint8_t,
 		Conditional,
 		Fallthrough,
 		Break,
-		Return,
-	};
+		Return
+	);
 
 	EnumClass(Attribute, uint8_t,
 		BackEdge,

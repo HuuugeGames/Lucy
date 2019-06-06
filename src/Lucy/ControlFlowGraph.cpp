@@ -1,6 +1,7 @@
 #include <functional>
 #include <fstream>
 #include <string_view>
+#include <unordered_set>
 
 #include "AST.hpp"
 #include "BasicBlock.hpp"
@@ -611,30 +612,27 @@ const AST::FunctionCall & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::
 void ControlFlowGraph::graphvizDump(std::ostream &os) const
 {
 	const std::string CFGPrefix = "CFG_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + '_';
-	auto unique_label = [&CFGPrefix](auto &&block) -> std::string
+	auto uniqueLabel = [&CFGPrefix](auto &&block) -> std::string
 	{
 		return CFGPrefix + block->label();
 	};
 
-	for (const auto &bb : m_blocks) {
-		os << '\t' << unique_label(bb) << " [shape=box";
-		if (!bb->insn.empty() || bb->exitType() != BasicBlock::ExitType::Fallthrough) {
-			os << ",label=<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\"><tr><td align=\"left\">//" << bb->label() << "</td></tr><hr/>";
-			for (const auto &i : bb->insn) {
-				os << "<tr><td align=\"left\">";
-				i->printCode(os);
-				os << "</td></tr>";
+	std::unordered_set <const BasicBlock *> visited;
+
+	std::function <void (const BasicBlock *)> printGraph = [this, &os, &printGraph, &uniqueLabel, &visited](const BasicBlock *bb)
+	{
+		if (!bb || !visited.insert(bb).second)
+			return;
+
+		os << '\t' << uniqueLabel(bb) << " [shape=box";
+		if (!bb->isEmpty()) {
+			os << ",label=<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\"><tr><td align=\"left\">//"
+				<< bb->label() << " [" << bb->exitType() << "]</td></tr><hr/>";
+			for (const auto &i : bb->irCode) {
+				os << "<tr><td align=\"left\">" << *i << "</td></tr>";
 			}
 
-			switch (bb->exitType()) {
-				case BasicBlock::ExitType::Conditional: {
-					if (!bb->insn.empty())
-						os << "<hr/>";
-					os << "<tr><td align=\"left\"><b>if</b> ";
-					bb->condition->printCode(os);
-					os << "</td></tr>";
-					break;
-				}
+			switch (bb->exitType().value()) {
 				case BasicBlock::ExitType::Break: {
 					os << "<tr><td align=\"left\"><b>break</b></td></tr>";
 					break;
@@ -658,23 +656,28 @@ void ControlFlowGraph::graphvizDump(std::ostream &os) const
 
 		if (bb->exitType() == BasicBlock::ExitType::Conditional) {
 			auto [trueBlock, falseBlock] = std::make_tuple(bb->nextBlock[0], bb->nextBlock[1]);
-			os << '\t' << unique_label(bb) << " -> " << unique_label(trueBlock) << " [label=\"true\",labelangle=45];\n";
-			os << '\t' << unique_label(bb) << " -> " << unique_label(falseBlock) << " [label=\"false\",labeldistance=2.0];\n";
+			os << '\t' << uniqueLabel(bb) << " -> " << uniqueLabel(trueBlock) << " [label=\"true\",labelangle=45];\n";
+			os << '\t' << uniqueLabel(bb) << " -> " << uniqueLabel(falseBlock) << " [label=\"false\",labeldistance=2.0];\n";
 		} else {
 			assert(!bb->nextBlock[1]);
 			if (auto next = bb->nextBlock[0]; next) {
-				os << '\t' << unique_label(bb) << " -> " << unique_label(next);
+				os << '\t' << uniqueLabel(bb) << " -> " << uniqueLabel(next);
 				if (bb->attribute(BasicBlock::Attribute::BackEdge)) {
 					assert(bb->loopFooter());
 					os << " [color=blue];\n";
-					os << '\t' << unique_label(bb) << " -> " << unique_label(bb->loopFooter()) << " [style=dashed,color=blue]";
+					os << '\t' << uniqueLabel(bb) << " -> " << uniqueLabel(bb->loopFooter()) << " [style=dashed,color=blue]";
 				}
 				os << ";\n";
 			}
 		}
 
 		os << '\n';
-	}
+
+		for (const auto &next : bb->nextBlock)
+			printGraph(next);
+	};
+
+	printGraph(m_entry);
 
 	for (const auto &f : m_functions)
 		f->cfg().graphvizDump(os);

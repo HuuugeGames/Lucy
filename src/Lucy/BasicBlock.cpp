@@ -84,7 +84,7 @@ bool BasicBlock::canPrune() const
 
 bool BasicBlock::isEmpty() const
 {
-	return exitType() == BasicBlock::ExitType::Fallthrough && insn.empty();
+	return exitType() == BasicBlock::ExitType::Fallthrough && irCode.empty();
 }
 
 void BasicBlock::generateIR()
@@ -129,7 +129,7 @@ void BasicBlock::setLoopFooter(BasicBlock *dst)
 
 void BasicBlock::finalize(BBContext &ctx)
 {
-	switch (ctx.current->exitType()) {
+	switch (ctx.current->exitType().value()) {
 		case ExitType::Conditional: {
 			assert(ctx.current->condition);
 			assert(!ctx.current->returnExprList);
