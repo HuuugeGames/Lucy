@@ -5,7 +5,11 @@
 #undef YY_DECL
 #define YY_DECL yy::Parser::symbol_type Scanner::token()
 
+static yy::position longStringStart;
+
 %}
+
+%x LongString
 
 %option c++
 %option noyywrap
@@ -103,6 +107,33 @@ local {
 
 \"(\\.|[^\\"])*\"|\'(\\.|[^\\'])*\' {
 	return yy::Parser::make_STRING_VALUE(std::string{YYText() + 1, static_cast<unsigned>(YYLeng() - 2)}, m_driver.location(YYText()));
+}
+
+\[{2} {
+	longStringStart = m_driver.position();
+	m_driver.location("[[");
+	BEGIN(LongString);
+}
+
+<LongString>{
+	\n {
+		m_driver.nextLine();
+		yymore();
+	}
+	[^\]] {
+		m_driver.step();
+		yymore();
+	}
+	\][^\]] {
+		m_driver.step();
+		yymore();
+	}
+	\]{2} {
+		BEGIN(INITIAL);
+		m_driver.location("]]");
+		const auto longStringEnd = m_driver.position();
+		return yy::Parser::make_STRING_VALUE(std::string{YYText(), static_cast<unsigned>(YYLeng() - 2)}, yy::location{longStringStart, longStringEnd});
+	}
 }
 
 "..." {

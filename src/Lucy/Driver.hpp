@@ -20,6 +20,7 @@ public:
 	int parse();
 
 	yy::location location(const char *s);
+	yy::position position() const { return m_position; }
 	void nextLine();
 	void step();
 
