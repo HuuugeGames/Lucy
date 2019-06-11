@@ -273,8 +273,10 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			}
 			case AST::Node::Type::For: {
 				auto forNode = static_cast<const AST::For *>(insn.get());
-				m_additionalNodes.emplace_back(new AST::Assignment{forNode->iterator(), forNode->startExpr().clone()});
-				current->insn.push_back(m_additionalNodes.back().get());
+				auto assignmentNode = new AST::Assignment{forNode->iterator(), forNode->startExpr().clone()};
+				assignmentNode->setLocal(true);
+				m_additionalNodes.emplace_back(assignmentNode);
+				current->insn.push_back(assignmentNode);
 
 				auto previous = current;
 				current = makeBB();
