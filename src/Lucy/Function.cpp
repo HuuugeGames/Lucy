@@ -67,5 +67,5 @@ void Function::setResultCount(const AST::Return &returnNode)
 	}
 
 	if (*m_resultCnt != resultCnt)
-		REPORT(Check::Function_VariableResultCount, returnNode.location() << " : returning other number of results (" << resultCnt << ") than in other return statement (" << *m_resultCnt << ")\n");
+		REPORT(Check::Function_VariableResultCount, returnNode.location() << " : returning different number of results (" << resultCnt << ") than in other return statement (" << *m_resultCnt << ")\n");
 }
