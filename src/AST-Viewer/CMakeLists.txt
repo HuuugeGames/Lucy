@@ -24,5 +24,4 @@ target_link_libraries(${TARGET_EXE}
 	${GLEW_LIBRARIES}
 	${OpenGL_LIBRARIES}
 	${SDL2_LIBRARIES}
-	-lSDL2_image
 )
