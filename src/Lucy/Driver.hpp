@@ -19,8 +19,11 @@ public:
 
 	int parse();
 
+	yy::location location() const { return yy::location{m_position, m_position}; }
 	yy::location location(const char *s);
 	yy::position position() const { return m_position; }
+
+	void logError(const std::string &msg);
 	void nextLine();
 	void step();
 
@@ -30,7 +33,6 @@ public:
 	void setInputStream(std::istream *input);
 
 private:
-	void logError(const std::string &msg);
 
 	Preprocessor m_preprocessor;
 	yy::Parser m_parser;

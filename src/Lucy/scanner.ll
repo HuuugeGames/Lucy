@@ -270,4 +270,11 @@ local {
 	return yy::Parser::make_END_OF_INPUT(m_driver.location(YYText()));
 }
 
+. {
+	std::ostringstream ss;
+	ss << '[' << m_driver.location() << "] Unrecognized input token: '" << YYText() << "'\n";
+	m_driver.logError(ss.str());
+	exit(1);
+}
+
 %%
