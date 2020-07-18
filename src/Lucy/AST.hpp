@@ -7,7 +7,6 @@
 #include <variant>
 #include <vector>
 
-#include "location.hh" //generated file
 #include "EnumHelpers.hpp"
 #include "Logger.hpp"
 #include "ValueType.hpp"

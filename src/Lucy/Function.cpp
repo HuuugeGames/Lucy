@@ -2,12 +2,13 @@
 #include "AST.hpp"
 #include "ControlFlowGraph.hpp"
 #include "Function.hpp"
+#include "Issue.hpp"
 
 Function::Function(const AST::Function &fnNode, Scope &scope)
 	: m_fnNode{fnNode}, m_fnScope{&scope, this}
 {
 	if (!fnNode.isLocal() && !fnNode.isAnonymous() && !fnNode.isMethod() && !fnNode.isNested() && scope.functionScope() == nullptr)
-		REPORT(Check::GlobalFunctionDefinition, fnNode.name().location() << " : function definition in global scope: " << fnNode.fullName() << '\n');
+		Logger::logIssue<Issue::GlobalFunctionDefinition>(fnNode.name().location(), fnNode.fullName());
 
 	if (fnNode.isMethod())
 		m_fnScope.addFunctionParam("self", yy::location{});
@@ -15,15 +16,15 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	for (const auto &param : fnNode.params().names()) {
 		if (!m_fnScope.addFunctionParam(param.first, param.second)) {
 			if (param.first != "self")
-				REPORT(Check::Function_DuplicateParam, param.second << " : duplicate function parameter: " << param.first << '\n');
+				Logger::logIssue<Issue::Function::DuplicateParam>(param.second, param.first);
 			else
-				REPORT(Check::Function_DuplicateParam, param.second << " : parameter \"self\" clashes with implicit parameter of the same name\n");
+				Logger::logIssue<Issue::Function::DuplicateParamSelf>(param.second);
 		}
 	}
 
 	if (fnNode.isVariadic()) {
 		if (!m_fnScope.addFunctionParam("arg", yy::location{})) {
-			REPORT(Check::Function_DuplicateParam, fnNode.paramList().location() << " : parameter \"arg\" is shadowed by \"...\"\n");
+			Logger::logIssue<Issue::Function::EllipsisShadowsParam>(fnNode.paramList().location());
 		}
 	}
 
@@ -32,7 +33,7 @@ Function::Function(const AST::Function &fnNode, Scope &scope)
 	if (m_resultCnt.value_or(0)) {
 		for (BasicBlock *pred : m_cfg->exit()->predecessors) {
 			if (pred->exitType() != BasicBlock::ExitType::Return) {
-				REPORT(Check::Function_VariableResultCount, fnNode.paramList().location() << " : function " << fnNode.fullName() << " might fall-through without returning any result\n");
+				Logger::logIssue<Issue::Function::FallthroughNoResult>(fnNode.paramList().location());
 				break;
 			}
 		}
@@ -67,5 +68,5 @@ void Function::setResultCount(const AST::Return &returnNode)
 	}
 
 	if (*m_resultCnt != resultCnt)
-		REPORT(Check::Function_VariableResultCount, returnNode.location() << " : returning different number of results (" << resultCnt << ") than in other return statement (" << *m_resultCnt << ")\n");
+		Logger::logIssue<Issue::Function::VariableResultCount>(returnNode.location(), *m_resultCnt, resultCnt);
 }

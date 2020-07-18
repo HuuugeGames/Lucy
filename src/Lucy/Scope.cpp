@@ -40,13 +40,12 @@ void Scope::addLocalStore(const AST::LValue &var)
 {
 	const std::string &varName = var.resolveName();
 
-	if (Logger::isEnabled(Check::ShadowingDefinition)) {
+	if (Logger::isEnabled(Issue::Type::ShadowingDefinition)) {
 		for (auto iter = m_rwOps.crbegin(); iter != m_rwOps.crend(); ++iter) {
 			if (!(*iter)->isFunctionParameter()) {
 				const std::string &resolvedName = (*iter)->var().resolveName();
 				if (resolvedName != "_" && resolvedName == varName) {
-					REPORT(Check::ShadowingDefinition, var.location() << " : definition of a local variable " << varName
-						<< " shadows earlier uses of a variable with the same name (" << (*iter)->var().location() << ")\n");
+					Logger::logIssue<Issue::ShadowingDefinition>(var.location(), varName, (*iter)->var().location());
 				}
 			}
 		}
@@ -103,16 +102,14 @@ void Scope::addVarAccess(const AST::LValue &var, VarAccess::Type type)
 
 	if (type == VarAccess::Type::Write) {
 		if (!originScope || (originScope != this && storage == VarAccess::Storage::Global)) {
-			Check check = Check::GlobalStore_FunctionScope;
-			if (!m_function)
-				check = Check::GlobalStore_GlobalScope;
-
 			if (resolvedName == "_")
-				check = Check::GlobalStore_Underscore;
+				Logger::logIssue<Issue::GlobalStore::Underscore>(var.location());
 			else if (isupper(resolvedName[0]))
-				check = Check::GlobalStore_UpperCase;
-
-			REPORT(check, var.location() << " : assignment to global name: " << resolvedName << '\n');
+				Logger::logIssue<Issue::GlobalStore::UpperCase>(var.location(), resolvedName);
+			else if (!m_function)
+				Logger::logIssue<Issue::GlobalStore::GlobalScope>(var.location(), resolvedName);
+			else
+				Logger::logIssue<Issue::GlobalStore::FunctionScope>(var.location(), resolvedName);
 		}
 	}
 
@@ -123,10 +120,10 @@ void Scope::reportUnusedFnParams() const
 {
 	for (const auto &param : m_fnParams) {
 		if (!param.used && !param.synthetic) {
-			Check check = Check::Function_UnusedParam;
 			if (param.name == "_")
-				check = Check::Function_UnusedParamUnderscore;
-			REPORT(check, param.location << " : unused parameter: " << param.name << '\n');
+				Logger::logIssue<Issue::Function::UnusedParamUnderscore>(param.location);
+			else
+				Logger::logIssue<Issue::Function::UnusedParam>(param.location, param.name);
 		}
 	}
 

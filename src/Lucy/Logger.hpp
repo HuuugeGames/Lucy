@@ -5,22 +5,7 @@
 #include <limits>
 
 #include "Bitfield.hpp"
-#include "EnumHelpers.hpp"
-
-EnumClass(Check, uint32_t,
-	EmptyChunk,
-	EmptyFunction,
-	Function_DuplicateParam,
-	Function_UnusedParam,
-	Function_UnusedParamUnderscore,
-	Function_VariableResultCount,
-	GlobalFunctionDefinition,
-	GlobalStore_FunctionScope,
-	GlobalStore_GlobalScope,
-	GlobalStore_Underscore,
-	GlobalStore_UpperCase,
-	ShadowingDefinition
-);
+#include "Issue.hpp"
 
 class Logger {
 public:
@@ -31,10 +16,12 @@ public:
 		Pedantic = 3,
 	};
 
-	static void enable(Check c) { instance().setFlag(c); }
-	static void disable(Check c) { instance().unsetFlag(c); }
-	static bool isEnabled(Check c);
+	static void enable(Issue::Type issue) { instance().setFlag(issue); }
+	static void disable(Issue::Type issue) { instance().unsetFlag(issue); }
+	static bool isEnabled(Issue::Type issue);
 
+	template <typename IssueType, typename ...Ts>
+	static void logIssue(Ts... args);
 	static std::ostream & log() { return *instance().m_output; }
 	static unsigned threshold() { return instance().m_threshold; }
 	static void setOutput(const std::string &filename);
@@ -56,12 +43,13 @@ private:
 
 	static Logger & instance();
 
-	void setFlag(Check c) { m_flags.set(c.value()); }
-	void unsetFlag(Check c) { m_flags.unset(c.value()); }
+	void setFlag(Issue::Type issue) { m_flags.set(issue.value()); }
+	void unsetFlag(Issue::Type issue) { m_flags.unset(issue.value()); }
 
-	Bitfield <Check::_size> m_flags;
+	Bitfield <Issue::Type::_size> m_flags;
 	std::ostream *m_output = &std::cerr;
 	unsigned m_threshold = std::numeric_limits<unsigned>::max();
+	std::vector <IssueVariant> m_issues;
 };
 
 #define LOG(severity, msg) \
@@ -70,14 +58,19 @@ private:
 			Logger::log() << msg; \
 	} while (false)
 
-#define REPORT(check, msg) \
-	do { \
-		if (Logger::isEnabled(check)) \
-			Logger::log() << '[' << Check{check} << "] " << msg; \
-	} while (false)
-
 #define FATAL(msg) \
 	do { \
 		Logger::log() << '[' << __FILE__ << ':' << __LINE__ << "] " << msg; \
 		::exit(1); \
 	} while (false)
+
+template <typename IssueType, typename ...Ts>
+void Logger::logIssue(Ts... args)
+{
+	auto &logger = instance();
+	auto &issueVec = logger.m_issues;
+	const auto &issue = std::get<IssueType>(issueVec.emplace_back(IssueType{args...}));
+
+	if (logger.isEnabled(issue.type()))
+		logger.log() << std::string{issue} << '\n';
+}

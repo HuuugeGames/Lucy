@@ -119,9 +119,9 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 	if (chunk.isEmpty()) {
 		if (ctx.currentScope->parent() == ctx.currentScope->functionScope())
-			REPORT(Check::EmptyFunction, chunk.location() << " : empty function definition\n");
+			Logger::logIssue<Issue::Function::EmptyDefinition>(chunk.location());
 		else
-			REPORT(Check::EmptyChunk, chunk.location() << " : empty chunk of code\n");
+			Logger::logIssue<Issue::EmptyChunk>(chunk.location());
 	}
 
 	for (const auto &insn : chunk.children()) {

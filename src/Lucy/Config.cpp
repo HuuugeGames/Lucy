@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "Config.hpp"
+#include "Issue.hpp"
 #include "Logger.hpp"
 
 void Config::parse(unsigned argc, const char **argv)
@@ -57,14 +58,14 @@ void Config::parse(const std::vector <std::string_view> &argv)
 		current = argv[idx];
 
 		if (current == "--disable-all") {
-			for (unsigned i = 0; i != Check::_size; ++i)
-				Logger::disable(Check{i});
+			for (unsigned i = 0; i != Issue::Type::_size; ++i)
+				Logger::disable(Issue::Type{i});
 		} else if (current == "--enable-all") {
-			for (unsigned i = 0; i != Check::_size; ++i)
-				Logger::enable(Check{i});
+			for (unsigned i = 0; i != Issue::Type::_size; ++i)
+				Logger::enable(Issue::Type{i});
 		} else if (current == "--enable" || current == "--disable") {
 			ensureArg();
-			auto flag = Check::fromString(argv[idx]);
+			auto flag = Issue::Type::fromString(argv[idx]);
 			if (flag.has_value()) {
 				if (current == "--enable")
 					Logger::enable(*flag);

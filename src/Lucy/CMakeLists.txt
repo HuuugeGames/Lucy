@@ -14,6 +14,7 @@ add_library(${PROJECT_NAME}Lib STATIC
 	Function.cpp
 	IR.cpp
 	IROp.cpp
+	Issue.cpp
 	Logger.cpp
 	Preprocessor.cpp
 	RValue.cpp

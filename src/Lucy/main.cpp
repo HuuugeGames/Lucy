@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include "Config.hpp"
 #include "ControlFlowGraph.hpp"
 #include "Driver.hpp"

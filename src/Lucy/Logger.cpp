@@ -4,26 +4,26 @@
 
 Logger::Logger()
 {
-	setFlag(Check::EmptyChunk);
-	unsetFlag(Check::EmptyFunction);
+	setFlag(Issue::Type::EmptyChunk);
 
-	setFlag(Check::Function_DuplicateParam);
-	setFlag(Check::Function_UnusedParam);
-	unsetFlag(Check::Function_UnusedParamUnderscore);
-	setFlag(Check::Function_VariableResultCount);
+	setFlag(Issue::Type::Function_DuplicateParam);
+	unsetFlag(Issue::Type::Function_EmptyDefinition);
+	setFlag(Issue::Type::Function_UnusedParam);
+	unsetFlag(Issue::Type::Function_UnusedParamUnderscore);
+	setFlag(Issue::Type::Function_VariableResultCount);
 
-	setFlag(Check::GlobalFunctionDefinition);
-	setFlag(Check::GlobalStore_FunctionScope);
-	setFlag(Check::GlobalStore_GlobalScope);
-	unsetFlag(Check::GlobalStore_Underscore);
-	setFlag(Check::GlobalStore_UpperCase);
+	setFlag(Issue::Type::GlobalFunctionDefinition);
+	setFlag(Issue::Type::GlobalStore_FunctionScope);
+	setFlag(Issue::Type::GlobalStore_GlobalScope);
+	unsetFlag(Issue::Type::GlobalStore_Underscore);
+	setFlag(Issue::Type::GlobalStore_UpperCase);
 
-	setFlag(Check::ShadowingDefinition);
+	setFlag(Issue::Type::ShadowingDefinition);
 }
 
-bool Logger::isEnabled(Check c)
+bool Logger::isEnabled(Issue::Type issue)
 {
-	return instance().m_flags.get(c.value());
+	return instance().m_flags.get(issue.value());
 }
 
 void Logger::setOutput(const std::string &filename)
