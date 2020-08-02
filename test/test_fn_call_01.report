@@ -1,0 +1,2 @@
+[Function_UnusedParam] ./test_fn_call_01.lua:1.26 : unused parameter: "n"
+[GlobalStore_GlobalScope] ./test_fn_call_01.lua:10.1 : assignment to global name "n" in global scope

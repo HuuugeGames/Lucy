@@ -1,0 +1,10 @@
+[EmptyChunk] ./test_empty.lua:2.3 : empty chunk of code
+[GlobalFunctionDefinition] ./test_empty.lua:14.10-15 : function definition in global scope: "params"
+[Function_EmptyDefinition] ./test_empty.lua:7.1-3 : empty function definition
+[Function_EmptyDefinition] ./test_empty.lua:10.1-3 : empty function definition
+[Function_EmptyDefinition] ./test_empty.lua:15.1-3 : empty function definition
+[Function_UnusedParam] ./test_empty.lua:14.17-19 : unused parameter: "abc"
+[Function_UnusedParam] ./test_empty.lua:14.22-24 : unused parameter: "qwe"
+[Function_UnusedParam] ./test_empty.lua:14.27-29 : unused parameter: "asd"
+[GlobalStore_GlobalScope] ./test_empty.lua:1.1 : assignment to global name "x" in global scope
+[GlobalStore_GlobalScope] ./test_empty.lua:6.1 : assignment to global name "y" in global scope

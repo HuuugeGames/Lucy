@@ -34,3 +34,7 @@ target_link_libraries(${PROJECT_NAME}Lib -fsanitize=address,undefined)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -fsanitize=address,undefined -ggdb)
 target_link_libraries(${PROJECT_NAME} LucyLib -fsanitize=address,undefined)
+
+add_custom_target(test
+	${CMAKE_SOURCE_DIR}/test/run-tests.sh $<TARGET_FILE:${PROJECT_NAME}> ${CMAKE_SOURCE_DIR}/test
+	DEPENDS ${PROJECT_NAME})
