@@ -22,6 +22,8 @@ public:
 
 	template <typename IssueType, typename ...Ts>
 	static void logIssue(Ts... args);
+
+	static const auto& foundIssues() { return instance().m_issues; }
 	static std::ostream & log() { return *instance().m_output; }
 	static unsigned threshold() { return instance().m_threshold; }
 	static void setOutput(const std::string &filename);

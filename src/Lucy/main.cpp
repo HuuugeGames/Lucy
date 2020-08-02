@@ -42,5 +42,18 @@ int main(int argc, const char **argv)
 	if (!conf.graphvizOutput.empty())
 		cfg.graphvizDump(conf.graphvizOutput);
 
+	if (!conf.issuesOutput.empty()) {
+		std::ofstream output{conf.issuesOutput};
+		auto printer = [&output](auto &&issue)
+		{
+			output << std::string{issue} << '\n';
+		};
+
+		auto issueVec = Logger::foundIssues();
+		std::sort(issueVec.begin(), issueVec.end());
+		for (const auto &issue : issueVec)
+			std::visit(printer, issue);
+	}
+
 	return 0;
 }

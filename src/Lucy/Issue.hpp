@@ -31,14 +31,42 @@ public:
 	Type type() const { return m_type; }
 	const yy::location & location() const { return m_location; }
 
+	bool operator < (const BaseIssue &other) const
+	{
+		if (m_type.value() != other.m_type.value())
+			return m_type.value() < other.m_type.value();
+
+		auto positionCmp = [](const yy::position &a, const yy::position &b) -> int
+		{
+			const std::string &filenameA = a.filename ? *a.filename : std::string{""};
+			const std::string &filenameB = b.filename ? *b.filename : std::string{""};
+
+			const int filenameCmp = filenameA.compare(filenameB);
+			if (filenameCmp != 0)
+				return filenameCmp;
+			if (a.line != b.line)
+				return a.line - b.line;
+			if (a.column != b.column)
+				return a.column - b.column;
+
+			return 0;
+		};
+
+		const int cmp = positionCmp(m_location.begin, other.m_location.begin);
+		if (cmp != 0)
+			return cmp < 0;
+
+		return positionCmp(m_location.end, other.m_location.end) < 0;
+	}
+
 protected:
 	BaseIssue(Type t, const yy::location &location) : m_type{t}, m_location{location} {}
 
 	virtual explicit operator std::string() const = 0;
 
 private:
-	const Type m_type;
-	const yy::location m_location;
+	Type m_type;
+	yy::location m_location;
 };
 
 class EmptyChunk : public BaseIssue {

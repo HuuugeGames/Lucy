@@ -76,6 +76,9 @@ void Config::parse(const std::vector <std::string_view> &argv)
 			}
 		} else if (current == "--dump-ast") {
 			boolOpts.set(Option::DumpAST);
+		} else if (current == "--dump-issues") {
+			ensureArg();
+			this->issuesOutput = argv[idx];
 		} else if (current == "--dump-ir") {
 			boolOpts.set(Option::DumpIR);
 		} else if (current == "--graphviz") {
@@ -116,14 +119,16 @@ Usage:
 If input file is not specified, read standard input.
 
 Options:
-  --graphviz <file>  write CFG description in dot language
-  -h, --help         usage information (this text)
-  --output <file>    write to file instead of stderr
-  --stdout           write to stdout instead of stderr
+  --graphviz <file>      write CFG description in dot language
+  -h, --help             usage information (this text)
+  --output <file>        write to file instead of stderr
+  --stdout               write to stdout instead of stderr
 
 Debugging and development options:
-  --dump-ast         write abstract syntax tree description to stdout
-  --dump-ir          write intermediate representation code to stdout
+  --dump-ast             write abstract syntax tree description to stdout
+  --dump-issues <file>   write all found issues to specified file (used for
+                         automatic testing)
+  --dump-ir              write intermediate representation code to stdout
 
 If command line is not available, you can pass options in LUCY_OPTIONS
 environment variable. Example:

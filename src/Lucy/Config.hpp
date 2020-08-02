@@ -9,6 +9,7 @@
 struct Config {
 	std::string graphvizOutput;
 	std::string inputFile;
+	std::string issuesOutput;
 	std::string logOutput;
 
 	EnumClass(Option, unsigned,
