@@ -51,7 +51,7 @@ void Scope::addLocalStore(const AST::LValue &var)
 		}
 	}
 
-	m_rwOps.emplace_back(new VarAccess{var, VarAccess::Type::Write, VarAccess::Storage::Local});
+	m_rwOps.emplace_back(std::make_unique<VarAccess>(var, VarAccess::Type::Write, VarAccess::Storage::Local));
 }
 
 void Scope::addVarAccess(const AST::LValue &var, VarAccess::Type type)
@@ -113,7 +113,7 @@ void Scope::addVarAccess(const AST::LValue &var, VarAccess::Type type)
 		}
 	}
 
-	m_rwOps.emplace_back(new VarAccess{var, type, storage, origin});
+	m_rwOps.emplace_back(std::make_unique<VarAccess>(var, type, storage, origin));
 }
 
 void Scope::reportUnusedFnParams() const

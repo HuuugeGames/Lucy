@@ -1,11 +1,14 @@
-#include <functional>
 #include <fstream>
-#include <string_view>
+#include <functional>
+#include <map>
+#include <queue>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "AST.hpp"
 #include "BasicBlock.hpp"
 #include "ControlFlowGraph.hpp"
+#include "Fold.hpp"
 #include "Function.hpp"
 #include "Scope.hpp"
 #include "Serial.hpp"
@@ -322,12 +325,12 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::Assignment &assignment)
 {
+	process(ctx, assignment.exprList());
+
 	for (const auto &lval : assignment.varList().vars()) {
 		if (lval->lvalueType() != AST::LValue::Type::Name)
 			process(ctx, *lval);
 	}
-
-	process(ctx, assignment.exprList());
 
 	if (assignment.isLocal()) {
 		for (const auto &lval : assignment.varList().vars())

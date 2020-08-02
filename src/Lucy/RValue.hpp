@@ -25,6 +25,10 @@ struct RValue {
 
 	Type type() const { return static_cast<Type>(valueRef.index()); }
 
+	const ValueVariant & getImmediate() const { return std::get<Type::Immediate>(valueRef); }
+	const AST::LValue * getLValue() const { return std::get<Type::LValue>(valueRef); }
+	const IR::Triplet * getTemporary() const { return std::get<Type::Temporary>(valueRef); }
+
 	std::variant <ValueVariant, const AST::LValue *, const IR::Triplet *> valueRef;
 };
 

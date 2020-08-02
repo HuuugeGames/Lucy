@@ -8,6 +8,8 @@
 #include "AST_fwd.hpp"
 #include "VarAccess.hpp"
 
+#include "location.hh"
+
 class Function;
 
 class Scope {
@@ -24,6 +26,7 @@ public:
 	Scope * parent() { return m_parent; }
 	Scope * push();
 
+	//TODO deprecate most of these
 	bool addFunctionParam(const std::string &name, const yy::location &location);
 	void addLoad(const AST::LValue &var);
 	void addLocalStore(const AST::LValue &var);

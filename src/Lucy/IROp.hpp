@@ -42,6 +42,11 @@ EnumClass(Op, unsigned,
 	JumpTrue
 );
 
-} //namespace IR
-
+bool isArithmeticBinaryOp(Op op);
+bool isBinaryOp(Op op);
+bool isBooleanBinaryOp(Op op);
+bool isTemporary(Op op);
+bool isUnaryOp(Op op);
 const char * prettyPrint(IR::Op op);
+
+} //namespace IR
