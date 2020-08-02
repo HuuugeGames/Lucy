@@ -38,20 +38,20 @@ class Driver;
 
 %start root
 
-%type <AST::Chunk *> block chunk chunk_base else function_body_block
-%type <AST::Node *> expr prefix_expr statement last_statement
-%type <std::pair <AST::Node *, AST::Chunk *> > else_if
-%type <std::vector <std::pair <AST::Node *, AST::Chunk *> > > else_if_list
-%type <AST::If *> if
-%type <AST::ParamList *> name_list param_list
-%type <AST::ExprList *> args expr_list
-%type <AST::FunctionCall *> function_call
-%type <AST::VarList *> var_list
-%type <AST::LValue *> var
-%type <AST::TableCtor *> field_list field_list_base table_ctor
-%type <AST::Field *> field
-%type <AST::Function *> function function_body
-%type <AST::FunctionName *> function_name function_name_base
+%type <std::unique_ptr <AST::Chunk> > block chunk chunk_base else function_body_block
+%type <std::unique_ptr <AST::Node> > expr prefix_expr statement last_statement
+%type <std::pair <std::unique_ptr<AST::Node>, std::unique_ptr<AST::Chunk> > > else_if
+%type <std::vector <std::pair <std::unique_ptr<AST::Node>, std::unique_ptr<AST::Chunk> > > > else_if_list
+%type <std::unique_ptr <AST::If> > if
+%type <std::unique_ptr <AST::ParamList> > name_list param_list
+%type <std::unique_ptr <AST::ExprList> > args expr_list
+%type <std::unique_ptr <AST::FunctionCall> > function_call
+%type <std::unique_ptr <AST::VarList> > var_list
+%type <std::unique_ptr <AST::LValue> > var
+%type <std::unique_ptr <AST::TableCtor> > field_list field_list_base table_ctor
+%type <std::unique_ptr <AST::Field> > field
+%type <std::unique_ptr <AST::Function> > function function_body
+%type <std::unique_ptr <AST::FunctionName> > function_name function_name_base
 
 %token <long> INT_VALUE
 %token <double> REAL_VALUE
@@ -78,7 +78,7 @@ class Driver;
 
 root :
 chunk {
-	driver.addChunk($chunk);
+	driver.addChunk(std::move($chunk));
 }
 ;
 
@@ -91,132 +91,131 @@ SEMICOLON {
 
 chunk :
 last_statement {
-	$$ = new AST::Chunk{@$};
-	$$->append($last_statement);
+	$$ = std::make_unique<AST::Chunk>(std::move(@$));
+	$$->append(std::move($last_statement));
 }
 | chunk_base last_statement {
-	$$ = $chunk_base;
-	$$->append($last_statement);
+	$$ = std::move($chunk_base);
+	$$->append(std::move($last_statement));
 }
 | chunk_base {
-	$$ = $chunk_base;
+	$$ = std::move($chunk_base);
 }
 | %empty {
-	$$ = new AST::Chunk{@$};
+	$$ = std::make_unique<AST::Chunk>(@$);
 }
 ;
 
 chunk_base :
 statement opt_semicolon {
-	$$ = new AST::Chunk{@$};
-	$$->append($statement);
+	$$ = std::make_unique<AST::Chunk>(@$);
+	$$->append(std::move($statement));
 }
 | chunk statement opt_semicolon {
-	$$ = $chunk;
-	$$->append($statement);
+	$$ = std::move($chunk);
+	$$->append(std::move($statement));
 }
 ;
 
 block :
 chunk {
-	$$ = $chunk;
+	$$ = std::move($chunk);
 }
 ;
 
 prefix_expr :
 var {
-	$$ = $var;
+	$$ = std::move($var);
 }
 | function_call {
-	$$ = $function_call;
+	$$ = std::move($function_call);
 }
 | LPAREN expr RPAREN {
-	$$ = new AST::NestedExpr{$expr, @$};
+	$$ = std::make_unique<AST::NestedExpr>(std::move($expr), @$);
 }
 ;
 
 statement :
 var_list ASSIGN expr_list {
-	$$ = new AST::Assignment{$var_list, $expr_list, @$};
+	$$ = std::make_unique<AST::Assignment>(std::move($var_list), std::move($expr_list), @$);
 }
 | function_call {
-	$$ = $function_call;
+	$$ = std::move($function_call);
 }
 | DO block END {
-	$$ = $block;
+	$$ = std::move($block);
 }
 | WHILE expr DO block END {
-	$$ = new AST::While{$expr, $block, @$};
+	$$ = std::make_unique<AST::While>(std::move($expr), std::move($block), @$);
 }
 | REPEAT block UNTIL expr {
-	$$ = new AST::Repeat{$expr, $block, @$};
+	$$ = std::make_unique<AST::Repeat>(std::move($expr), std::move($block), @$);
 }
 | if else_if_list else END {
-	AST::If *tmp = $if;
-	for (const auto &p : $else_if_list)
-		tmp->addElseIf(p.first, p.second);
-	tmp->setElse($else);
-	$$ = tmp;
+	for (auto &&p : $else_if_list)
+		$if->addElseIf(std::move(p.first), std::move(p.second));
+	$if->setElse(std::move($else));
+	$$ = std::move($if);
 }
 | FOR ID ASSIGN expr[start] COMMA expr[limit] COMMA expr[step] DO block END {
-	$$ = new AST::For{$ID, $start, $limit, $step, $block, @$};
+	$$ = std::make_unique<AST::For>($ID, std::move($start), std::move($limit), std::move($step), std::move($block), @$);
 }
 | FOR ID ASSIGN expr[start] COMMA expr[limit] DO block END {
-	$$ = new AST::For{$ID, $start, $limit, nullptr, $block, @$};
+	$$ = std::make_unique<AST::For>($ID, std::move($start), std::move($limit), nullptr, std::move($block), @$);
 }
 | FOR name_list IN expr_list DO block END {
-	$$ = new AST::ForEach{$name_list, $expr_list, $block, @$};
+	$$ = std::make_unique<AST::ForEach>(std::move($name_list), std::move($expr_list), std::move($block), @$);
 }
 | FUNCTION function_name function_body {
-	$function_body->setName($function_name);
-	$$ = $function_body;
+	$function_body->setName(std::move($function_name));
+	$$ = std::move($function_body);
 }
 | LOCAL FUNCTION ID function_body {
-	$function_body->setName(new AST::FunctionName{std:move($ID), @ID});
+	$function_body->setName(std::make_unique<AST::FunctionName>(std::move($ID), @ID));
 	$function_body->setLocal();
-	$$ = $function_body;
+	$$ = std::move($function_body);
 }
 | LOCAL name_list {
-	auto tmp = new AST::Assignment{$name_list, nullptr, @$};
+	auto tmp = std::make_unique<AST::Assignment>(std::move($name_list), nullptr, @$);
 	tmp->setLocal(true);
-	$$ = tmp;
+	$$ = std::move(tmp);
 }
 | LOCAL name_list ASSIGN expr_list {
-	auto tmp = new AST::Assignment{$name_list, $expr_list, @$};
+	auto tmp = std::make_unique<AST::Assignment>(std::move($name_list), std::move($expr_list), @$);
 	tmp->setLocal(true);
-	$$ = tmp;
+	$$ = std::move(tmp);
 }
 ;
 
 function_name :
 function_name_base {
-	$$ = $function_name_base;
+	$$ = std::move($function_name_base);
 }
 | function_name_base COLON ID {
-	$$ = $function_name_base;
+	$$ = std::move($function_name_base);
 	$$->appendMethodName(std::move($ID), @$);
 }
 ;
 
 function_name_base :
 ID {
-	$$ = new AST::FunctionName{std::move($ID), @$};
+	$$ = std::make_unique<AST::FunctionName>(std::move($ID), @$);
 }
 | function_name_base[base] DOT ID {
-	$$ = $base;
+	$$ = std::move($base);
 	$$->appendNamePart(std::move($ID), @$);
 }
 ;
 
 if :
 IF expr THEN block {
-	$$ = new AST::If{$expr, $block, @$};
+	$$ = std::make_unique<AST::If>(std::move($expr), std::move($block), @$);
 }
 ;
 
 else :
 ELSE block {
-	$$ = $block;
+	$$ = std::move($block);
 }
 | %empty {
 	$$ = nullptr;
@@ -225,13 +224,13 @@ ELSE block {
 
 else_if :
 ELSEIF expr THEN block {
-	$$ = std::make_pair($expr, $block);
+	$$ = std::make_pair(std::move($expr), std::move($block));
 }
 ;
 
 else_if_list :
 else_if {
-	$$ = std::vector <std::pair <AST::Node *, AST::Chunk *> >{};
+	$$ = std::vector <std::pair <std::unique_ptr <AST::Node>, std::unique_ptr<AST::Chunk> > >{};
 	$$.emplace_back(std::move($else_if));
 }
 | else_if_list[base] else_if {
@@ -239,256 +238,254 @@ else_if {
 	$$.emplace_back(std::move($else_if));
 }
 | %empty {
-	$$ = std::vector <std::pair <AST::Node *, AST::Chunk *> >{};
+	$$ = std::vector <std::pair <std::unique_ptr <AST::Node>, std::unique_ptr <AST::Chunk> > >{};
 }
 ;
 
 last_statement :
 RETURN expr_list opt_semicolon {
-	$$ = new AST::Return{$expr_list, @$};
+	$$ = std::make_unique<AST::Return>(std::move($expr_list), @$);
 }
 | RETURN opt_semicolon {
-	$$ = new AST::Return{nullptr, @$};
+	$$ = std::make_unique<AST::Return>(nullptr, @$);
 }
 | BREAK opt_semicolon {
-	$$ = new AST::Break{@$};
+	$$ = std::make_unique<AST::Break>(@$);
 };
 
 expr_list :
 expr {
-	$$ = new AST::ExprList{@$};
-	$$->append($expr);
+	$$ = std::make_unique<AST::ExprList>(@$);
+	$$->append(std::move($expr));
 }
 | expr_list[exprs] COMMA expr {
-	$$ = $exprs;
-	$$->append($expr);
+	$$ = std::move($exprs);
+	$$->append(std::move($expr));
 }
 ;
 
 var_list :
 var {
-	$$ = new AST::VarList{@$};
-	$$->append($var);
+	$$ = std::make_unique<AST::VarList>(@$);
+	$$->append(std::move($var));
 }
 | var_list[vars] COMMA var {
-	$$ = $vars;
-	$$->append($var);
+	$$ = std::move($vars);
+	$$->append(std::move($var));
 }
 ;
 
 var :
 ID {
-	$$ = new AST::LValue{$ID, @$};
+	$$ = std::make_unique<AST::LValue>($ID, @$);
 }
 | prefix_expr LBRACKET expr RBRACKET {
-	$$ = new AST::LValue{$prefix_expr, $expr, @$};
+	$$ = std::make_unique<AST::LValue>(std::move($prefix_expr), std::move($expr), @$);
 }
 | prefix_expr DOT ID {
-	$$ = new AST::LValue{$prefix_expr, $ID, @$};
+	$$ = std::make_unique<AST::LValue>(std::move($prefix_expr), $ID, @$);
 }
 ;
 
 function_call :
 prefix_expr args {
-	$$ = new AST::FunctionCall{$prefix_expr, $args, @$};
+	$$ = std::make_unique<AST::FunctionCall>(std::move($prefix_expr), std::move($args), @$);
 }
 | prefix_expr COLON ID args {
 	yy::location fnExprLocation = @prefix_expr;
 	fnExprLocation.end = @ID.end;
-	AST::LValue *fnExpr = new AST::LValue{$prefix_expr, $ID, fnExprLocation};
-	$args->prepend($prefix_expr->clone().release());
-	$$ = new AST::FunctionCall{fnExpr, $args, @$};
+	$args->prepend($prefix_expr->clone());
+	auto fnExpr = std::make_unique<AST::LValue>(std::move($prefix_expr), $ID, fnExprLocation);
+	$$ = std::make_unique<AST::FunctionCall>(std::move(fnExpr), std::move($args), @$);
 }
 ;
 
 args :
 LPAREN expr_list RPAREN {
-	$$ = $expr_list;
+	$$ = std::move($expr_list);
 }
 | LPAREN RPAREN {
-	$$ = new AST::ExprList{@$};
+	$$ = std::make_unique<AST::ExprList>(@$);
 }
 | table_ctor {
-	$$ = new AST::ExprList{@$};
-	$$->append($table_ctor);
+	$$ = std::make_unique<AST::ExprList>(@$);
+	$$->append(std::move($table_ctor));
 }
 | STRING_VALUE {
-	$$ = new AST::ExprList{@$};
-	$$->append(new AST::StringValue{$STRING_VALUE, @$});
+	$$ = std::make_unique<AST::ExprList>(@$);
+	$$->append(std::make_unique<AST::StringValue>($STRING_VALUE, @$));
 }
 ;
 
 function :
 FUNCTION function_body {
-	$$ = $function_body;
+	$$ = std::move($function_body);
 }
 ;
 
 function_body :
 LPAREN RPAREN function_body_block[block] {
-	$$ = new AST::Function{new AST::ParamList{}, $block, @$};
+	$$ = std::make_unique<AST::Function>(std::make_unique<AST::ParamList>(), std::move($block), @$);
 }
 | LPAREN param_list RPAREN function_body_block[block] {
-	$$ = new AST::Function{$param_list, $block, @$};
+	$$ = std::make_unique<AST::Function>(std::move($param_list), std::move($block), @$);
 }
 ;
 
 function_body_block :
 block END {
-	$$ = $block;
+	$$ = std::move($block);
 }
 | END {
-	$$ = new AST::Chunk{@$};
+	$$ = std::make_unique<AST::Chunk>(@$);
 }
 ;
 
 name_list :
 ID {
-	$$ = new AST::ParamList{@$};
+	$$ = std::make_unique<AST::ParamList>(@$);
 	$$->append($ID, @$);
 }
 | name_list[names] COMMA ID {
-	$$ = $names;
+	$$ = std::move($names);
 	$$->append($ID, @ID);
 }
 ;
 
 param_list :
 name_list COMMA ELLIPSIS {
-	$$ = $name_list;
+	$$ = std::move($name_list);
 	$$->setEllipsis();
 }
 | name_list {
-	$$ = $name_list;
+	$$ = std::move($name_list);
 }
 | ELLIPSIS {
-	$$ = new AST::ParamList{@$};
+	$$ = std::make_unique<AST::ParamList>(@$);
 	$$->setEllipsis();
 }
 ;
 
 expr :
 NIL {
-	$$ = new AST::NilValue{@$};
+	$$ = std::make_unique<AST::NilValue>(@$);
 }
 | FALSE {
-	$$ = new AST::BooleanValue{false, @$};
+	$$ = std::make_unique<AST::BooleanValue>(false, @$);
 }
 | TRUE {
-	$$ = new AST::BooleanValue{true, @$};
+	$$ = std::make_unique<AST::BooleanValue>(true, @$);
 }
 | INT_VALUE {
-	$$ = new AST::IntValue{$INT_VALUE, @$};
+	$$ = std::make_unique<AST::IntValue>($INT_VALUE, @$);
 }
 | REAL_VALUE {
-	$$ = new AST::RealValue{$REAL_VALUE, @$};
+	$$ = std::make_unique<AST::RealValue>($REAL_VALUE, @$);
 }
 | STRING_VALUE {
-	$$ = new AST::StringValue{$STRING_VALUE, @$};
+	$$ = std::make_unique<AST::StringValue>($STRING_VALUE, @$);
 }
 | ELLIPSIS {
-	$$ = new AST::Ellipsis{@$};
+	$$ = std::make_unique<AST::Ellipsis>(@$);
 }
 | function {
-	$$ = $function;
+	$$ = std::move($function);
 }
 | expr[left] OR expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Or, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Or, std::move($left), std::move($right), @$);
 }
 | expr[left] AND expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::And, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::And, std::move($left), std::move($right), @$);
 }
 | expr[left] LT expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Less, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Less, std::move($left), std::move($right), @$);
 }
 | expr[left] LE expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::LessEqual, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::LessEqual, std::move($left), std::move($right), @$);
 }
 | expr[left] GT expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Greater, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Greater, std::move($left), std::move($right), @$);
 }
 | expr[left] GE expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::GreaterEqual, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::GreaterEqual, std::move($left), std::move($right), @$);
 }
 | expr[left] EQ expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Equal, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Equal, std::move($left), std::move($right), @$);
 }
 | expr[left] NE expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::NotEqual, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::NotEqual, std::move($left), std::move($right), @$);
 }
 | expr[left] PLUS expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Plus, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Plus, std::move($left), std::move($right), @$);
 }
 | expr[left] MINUS expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Minus, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Minus, std::move($left), std::move($right), @$);
 }
 | expr[left] MUL expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Times, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Times, std::move($left), std::move($right), @$);
 }
 | expr[left] DIV expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Divide, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Divide, std::move($left), std::move($right), @$);
 }
 | expr[left] MOD expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Modulo, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Modulo, std::move($left), std::move($right), @$);
 }
 | expr[left] POWER expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Exponentation, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Exponentation, std::move($left), std::move($right), @$);
 }
 | expr[left] CONCAT expr[right] {
-	$$ = new AST::BinOp{AST::BinOp::Type::Concat, $left, $right, @$};
+	$$ = std::make_unique<AST::BinOp>(AST::BinOp::Type::Concat, std::move($left), std::move($right), @$);
 }
 | MINUS expr[neg] %prec NEGATE {
 	if ($neg->isValue()) {
-		const auto *v = static_cast<const AST::Value *>($neg);
+		const auto *v = static_cast<const AST::Value *>($neg.get());
 		if (v->valueType() == ValueType::Integer) {
-			$$ = new AST::IntValue{-static_cast<const AST::IntValue *>(v)->value(), @$};
+			$$ = std::make_unique<AST::IntValue>(-static_cast<const AST::IntValue *>(v)->value(), @$);
 		} else if (v->valueType() == ValueType::Real) {
-			$$ = new AST::RealValue{-static_cast<const AST::RealValue *>(v)->value(), @$};
+			$$ = std::make_unique<AST::RealValue>(-static_cast<const AST::RealValue *>(v)->value(), @$);
 		} else {
 			error(@$, "Invalid ValueType for unary minus operator");
 			YYABORT;
 		}
-
-		delete $neg;
 	} else {
-		$$ = new AST::UnOp{AST::UnOp::Type::Negate, $neg, @$};
+		$$ = std::make_unique<AST::UnOp>(AST::UnOp::Type::Negate, std::move($neg), @$);
 	}
 }
 | NOT expr[not] {
-	$$ = new AST::UnOp{AST::UnOp::Type::Not, $not, @$};
+	$$ = std::make_unique<AST::UnOp>(AST::UnOp::Type::Not, std::move($not), @$);
 }
 | HASH expr[len] {
-	$$ = new AST::UnOp{AST::UnOp::Type::Length, $len, @$};
+	$$ = std::make_unique<AST::UnOp>(AST::UnOp::Type::Length, std::move($len), @$);
 }
 | table_ctor {
-	$$ = $table_ctor;
+	$$ = std::move($table_ctor);
 }
 | prefix_expr {
-	$$ = $prefix_expr;
+	$$ = std::move($prefix_expr);
 }
 ;
 
 table_ctor :
 LBRACE RBRACE {
-	$$ = new AST::TableCtor{@$};
+	$$ = std::make_unique<AST::TableCtor>(@$);
 }
 | LBRACE field_list RBRACE {
-	$$ = $field_list;
+	$$ = std::move($field_list);
 }
 ;
 
 field_list : field_list_base opt_field_separator {
-	$$ = $field_list_base;
+	$$ = std::move($field_list_base);
 }
 
 field_list_base :
 field {
-	$$ = new AST::TableCtor{@$};
-	$$->append($field);
+	$$ = std::make_unique<AST::TableCtor>(@$);
+	$$->append(std::move($field));
 }
 | field_list_base[fields] field_separator field {
-	$$ = $fields;
-	$$->append($field);
+	$$ = std::move($fields);
+	$$->append(std::move($field));
 }
 ;
 
@@ -508,13 +505,13 @@ field_separator {
 
 field :
 LBRACKET expr[key] RBRACKET ASSIGN expr[val] {
-	$$ = new AST::Field{$key, $val, @$};
+	$$ = std::make_unique<AST::Field>(std::move($key), std::move($val), @$);
 }
 | ID[key] ASSIGN expr[val] {
-	$$ = new AST::Field{$key, $val, @$};
+	$$ = std::make_unique<AST::Field>(std::move($key), std::move($val), @$);
 }
 | expr[val] {
-	$$ = new AST::Field{$val, @$};
+	$$ = std::make_unique<AST::Field>(std::move($val), @$);
 }
 ;
 

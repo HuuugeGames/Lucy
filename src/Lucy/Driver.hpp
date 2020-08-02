@@ -13,7 +13,7 @@ class Driver {
 public:
 	Driver();
 
-	void addChunk(AST::Chunk *chunk);
+	void addChunk(std::unique_ptr <AST::Chunk> &&chunk);
 	std::vector <std::unique_ptr <AST::Chunk> > & chunks();
 	const std::vector <std::unique_ptr <AST::Chunk> > & chunks() const;
 

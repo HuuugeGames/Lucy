@@ -465,8 +465,11 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 {
 	assert(anyOf(binOp.binOpType(), AST::BinOp::Type::And, AST::BinOp::Type::Or));
 
-	BasicBlock *trueBlock = new BasicBlock{ctx.current->label() + "_T"};
-	BasicBlock *falseBlock = new BasicBlock{ctx.current->label() + "_F"};
+	ctx.current->m_subBlocks[0] = std::make_unique<BasicBlock>(ctx.current->label() + "_T");
+	ctx.current->m_subBlocks[1] = std::make_unique<BasicBlock>(ctx.current->label() + "_F");
+
+	BasicBlock *trueBlock = ctx.current->m_subBlocks[0].get();
+	BasicBlock *falseBlock = ctx.current->m_subBlocks[1].get();
 
 	falseBlock->setAttribute(BasicBlock::Attribute::SubBlock);
 	falseBlock->setExitType(ctx.current->exitType());
@@ -483,9 +486,6 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 	trueBlock->nextBlock[0] = falseBlock;
 	trueBlock->predecessors.push_back(ctx.current);
 
-	ctx.current->m_subBlocks[0].reset(trueBlock);
-	ctx.current->m_subBlocks[1].reset(falseBlock);
-
 	for (auto nextBlock : ctx.current->nextBlock) {
 		if (nextBlock) {
 			nextBlock->removePredecessor(ctx.current);
@@ -496,29 +496,25 @@ void BasicBlock::splitBlock(BBContext &ctx, const AST::LValue *tmpDst, const AST
 	ctx.current->nextBlock[0] = trueBlock;
 	ctx.current->nextBlock[1] = falseBlock;
 
-	AST::Node *conditionalExpr = tmpDst->clone().release();
+	auto conditionalExpr = tmpDst->clone();
 	if (binOp.binOpType() == AST::BinOp::Type::Or)
-		conditionalExpr = new AST::UnOp{AST::UnOp::Type::Not, conditionalExpr};
+		conditionalExpr = std::make_unique<AST::UnOp>(AST::UnOp::Type::Not, std::move(conditionalExpr));
 
-	AST::Assignment *assignRightSide = new AST::Assignment{static_cast<AST::LValue *>(tmpDst->clone().release()), binOp.right().clone().release()};
+	auto chunk = std::make_unique<AST::Chunk>();
+	auto assignment = std::make_unique<AST::Assignment>(tmpDst->clone<AST::LValue>(), binOp.right().clone());
+	auto assignmentPtr = assignment.get();
+	chunk->append(std::move(assignment));
 
-	AST::If *condNode = new AST::If
-	{
-		conditionalExpr,
-		new AST::Chunk
-		{
-			{assignRightSide}
-		}
-	};
+	auto condNode = std::make_unique<AST::If>(std::move(conditionalExpr), std::move(chunk));
 
 	ctx.current->setExitType(ExitType::Conditional);
 	ctx.current->returnExprList = nullptr;
 	ctx.current->condition = condNode->conditions()[0].get();
-	ctx.current->m_condNode.reset(condNode);
+	ctx.current->m_condNode = std::move(condNode);
 	ctx.popBlock();
 
 	ctx.pushBlock(trueBlock);
-	process(ctx, *assignRightSide);
+	process(ctx, *assignmentPtr);
 	ctx.popBlock();
 
 	ctx.pushBlock(falseBlock);

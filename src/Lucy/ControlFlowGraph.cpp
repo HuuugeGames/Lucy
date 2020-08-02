@@ -39,10 +39,10 @@ ControlFlowGraph::ControlFlowGraph(const AST::Chunk &chunk, Scope &scope)
 		LOG(Logger::Error, brk.second.location() << " : no loop to break from\n");
 
 	if (!m_exit->isEmpty()) {
-		BasicBlock *commonExit = new BasicBlock{m_blockSerial.next()};
+		m_blocks.emplace_back(std::make_unique<BasicBlock>(m_blockSerial.next()));
+		auto commonExit = m_blocks.back().get();
 		commonExit->phase = m_walkPhase;
 		commonExit->scope = m_exit->scope;
-		m_blocks.emplace_back(commonExit);
 
 		m_exit->nextBlock[0] = commonExit;
 		m_exit = commonExit;
@@ -101,11 +101,10 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 {
 	auto makeBB = [this, &ctx]
 	{
-		auto newBlock = new BasicBlock{m_blockSerial.next()};
+		m_blocks.emplace_back(std::make_unique<BasicBlock>(m_blockSerial.next()));
+		auto newBlock = m_blocks.back().get();
 		newBlock->phase = m_walkPhase;
 		newBlock->scope = ctx.currentScope;
-
-		m_blocks.emplace_back(newBlock);
 		return newBlock;
 	};
 
@@ -276,10 +275,10 @@ std::pair <BasicBlock *, BasicBlock *> ControlFlowGraph::process(CFGContext &ctx
 			}
 			case AST::Node::Type::For: {
 				auto forNode = static_cast<const AST::For *>(insn.get());
-				auto assignmentNode = new AST::Assignment{forNode->iterator(), forNode->startExpr().clone()};
+				auto assignmentNode = std::make_unique<AST::Assignment>(forNode->iterator(), forNode->startExpr().clone());
 				assignmentNode->setLocal(true);
-				m_additionalNodes.emplace_back(assignmentNode);
-				current->insn.push_back(assignmentNode);
+				current->insn.push_back(assignmentNode.get());
+				m_additionalNodes.emplace_back(std::move(assignmentNode));
 
 				auto previous = current;
 				current = makeBB();
@@ -356,7 +355,7 @@ void ControlFlowGraph::process(CFGContext &ctx, const AST::Field &field)
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::Function &fnNode)
 {
-	m_functions.emplace_back(new Function{fnNode, *ctx.currentScope});
+	m_functions.emplace_back(std::make_unique<Function>(fnNode, *ctx.currentScope));
 }
 
 void ControlFlowGraph::process(CFGContext &ctx, const AST::FunctionCall &fnCallNode)
@@ -529,57 +528,52 @@ const AST::Chunk & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::ForEach
 	const char InvariantState[] = "__s";
 	const char ControlVar[] = "__c";
 
-	AST::Chunk *result = new AST::Chunk{};
-	m_additionalNodes.emplace_back(result);
+	auto node = std::make_unique<AST::Chunk>();
 
-	AST::VarList *initVars = new AST::VarList{IteratorFn, InvariantState, ControlVar};
-	AST::Assignment *initAssignment = new AST::Assignment{initVars, forEach.cloneExprList().release()};
-	initAssignment->setLocal(true);
-	result->append(initAssignment);
-
-	AST::Chunk *loopChunk = new AST::Chunk{};
-	AST::While *loop = new AST::While{new AST::BooleanValue{true}, loopChunk};
-	result->append(loop);
-
-	//Is it JSON yet?
-	AST::Assignment *loopAssignment = new AST::Assignment
 	{
-		forEach.cloneVariables().release(),
-		new AST::ExprList
-		{
-			new AST::FunctionCall
-			{
-				new AST::LValue{IteratorFn},
-				new AST::ExprList
-				{
-					new AST::LValue{InvariantState},
-					new AST::LValue{ControlVar}
-				}
-			}
-		}
-	};
-	loopAssignment->setLocal(true);
-	loopChunk->append(loopAssignment);
+		auto initAssignment = std::make_unique<AST::Assignment>(
+			std::make_unique<AST::VarList>(std::initializer_list<const char *>{IteratorFn, InvariantState, ControlVar}),
+			forEach.cloneExprList()
+		);
+		initAssignment->setLocal(true);
+		node->append(std::move(initAssignment));
+	}
 
-	loopChunk->append(new AST::Assignment{ControlVar, forEach.variables().names()[0].first});
-
-	AST::If *endLoopCondition = new AST::If
+	auto loopChunk = std::make_unique<AST::Chunk>();
 	{
-		new AST::BinOp
-		{
-			AST::BinOp::Type::Equal,
-			new AST::LValue{ControlVar},
-			new AST::NilValue{},
-		},
-		new AST::Chunk
-		{
-			new AST::Break{}
-		}
-	};
-	loopChunk->append(endLoopCondition);
+		auto iteratorFnArgs = std::make_unique<AST::ExprList>();
+		iteratorFnArgs->append(std::make_unique<AST::LValue>(InvariantState));
+		iteratorFnArgs->append(std::make_unique<AST::LValue>(ControlVar));
 
-	loopChunk->append(forEach.cloneChunk().release());
+		auto loopExprList = std::make_unique<AST::ExprList>();
+		loopExprList->append(std::make_unique<AST::FunctionCall>(std::make_unique<AST::LValue>(IteratorFn), std::move(iteratorFnArgs)));
 
+		auto loopAssignment = std::make_unique<AST::Assignment>(forEach.cloneVariables(), std::move(loopExprList));
+		loopAssignment->setLocal(true);
+		loopChunk->append(std::move(loopAssignment));
+		loopChunk->append(std::make_unique<AST::Assignment>(ControlVar, forEach.variables().names()[0].first));
+	}
+
+	{
+		auto endLoopChunk = std::make_unique<AST::Chunk>();
+		endLoopChunk->append(std::make_unique<AST::Break>());
+		auto endLoopCondition = std::make_unique<AST::If>
+		(
+			std::make_unique<AST::BinOp>
+			(
+				AST::BinOp::Type::Equal,
+				std::make_unique<AST::LValue>(ControlVar),
+				std::make_unique<AST::NilValue>()
+			),
+			std::move(endLoopChunk)
+		);
+		loopChunk->append(std::move(endLoopCondition));
+		loopChunk->append(forEach.cloneChunk());
+	}
+
+	node->append(std::make_unique<AST::While>(std::make_unique<AST::BooleanValue>(true), std::move(loopChunk)));
+	auto result = node.get();
+	m_additionalNodes.emplace_back(std::move(node));
 	return *result;
 }
 
@@ -589,28 +583,30 @@ const AST::Assignment & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::Fu
 
 	const auto &fnName = fnNode.name();
 	const auto &nameParts = fnName.nameParts();
-	AST::LValue *nameLval = new AST::LValue{nameParts[0]};
+	auto nameLval = std::make_unique<AST::LValue>(nameParts[0]);
 
 	for (unsigned i = 1; i != nameParts.size(); ++i)
-		nameLval = new AST::LValue{nameLval, nameParts[i]};
+		nameLval = std::make_unique<AST::LValue>(std::move(nameLval), nameParts[i]);
 	if (fnName.isMethod())
-		nameLval = new AST::LValue{nameLval, fnName.method()};
+		nameLval = std::make_unique<AST::LValue>(std::move(nameLval), fnName.method());
 
-	AST::Function *anonymizedFn = static_cast<AST::Function *>(fnNode.clone().release());
+	auto anonymizedFn = fnNode.clone<AST::Function>();
 	anonymizedFn->clearName();
 
-	AST::Assignment *result = new AST::Assignment{nameLval, anonymizedFn};
+	auto node = std::make_unique<AST::Assignment>(std::move(nameLval), std::move(anonymizedFn));
 	if (fnNode.isLocal())
-		result->setLocal(true);
+		node->setLocal(true);
 
-	m_additionalNodes.emplace_back(result);
+	auto result = node.get();
+	m_additionalNodes.emplace_back(std::move(node));
 	return *result;
 }
 
 const AST::FunctionCall & ControlFlowGraph::rewrite(CFGContext &ctx, const AST::MethodCall &callNode)
 {
-	AST::FunctionCall *result = callNode.cloneAsFunctionCall().release();
-	m_additionalNodes.emplace_back(result);
+	auto node = callNode.cloneAsFunctionCall();
+	auto result = node.get();
+	m_additionalNodes.emplace_back(std::move(node));
 	return *result;
 }
 

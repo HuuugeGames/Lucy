@@ -40,10 +40,6 @@ std::ostream & operator << (std::ostream &os, const RValue &rval)
 const AST::LValue * RValue::getTemporary(unsigned idx)
 {
 	static std::unordered_map <unsigned, std::unique_ptr <const AST::LValue> > temporaries;
-
-	auto iter = temporaries.find(idx);
-	if (iter == temporaries.end())
-		iter = temporaries.emplace(idx, new AST::LValue{"__tmp_rval_" + std::to_string(idx)}).first;
-
+	auto [iter, _] = temporaries.emplace(idx, std::make_unique<AST::LValue>("__tmp_rval_" + std::to_string(idx)));
 	return iter->second.get();
 }

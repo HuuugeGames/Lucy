@@ -11,9 +11,9 @@ Driver::Driver()
 {
 }
 
-void Driver::addChunk(AST::Chunk *chunk)
+void Driver::addChunk(std::unique_ptr <AST::Chunk> &&chunk)
 {
-	m_chunks.emplace_back(chunk);
+	m_chunks.emplace_back(std::move(chunk));
 }
 
 std::vector <std::unique_ptr <AST::Chunk> > & Driver::chunks()

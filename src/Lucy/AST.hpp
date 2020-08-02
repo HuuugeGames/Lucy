@@ -4,6 +4,7 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -67,6 +68,13 @@ public:
 	virtual Type type() const = 0;
 	virtual std::unique_ptr <Node> clone() const = 0;
 
+	template <typename T>
+	std::unique_ptr <T> clone() const
+	{
+		static_assert(std::is_base_of_v<Node, T>);
+		return std::unique_ptr <T>{static_cast<T *>(clone().release())};
+	}
+
 	const yy::location & location() const
 	{
 		return m_location;
@@ -102,24 +110,18 @@ private:
 };
 
 class Chunk : public Node {
+	friend std::unique_ptr <Chunk> std::make_unique<Chunk>(const Chunk &);
 public:
 	static const Chunk Empty;
 
 	Chunk(const yy::location &location = yy::location{}) : Node{location} {}
 
-	Chunk(std::initializer_list <Node *> statements, const yy::location &location = yy::location{})
-		: Node{location}
-	{
-		for (auto s : statements)
-			append(s);
-	}
-
 	bool isEmpty() const { return m_children.empty(); }
 
-	void append(Node *n)
+	void append(std::unique_ptr <Node> &&n)
 	{
-		m_children.emplace_back(n);
 		extendLocation(n->location());
+		m_children.emplace_back(std::move(n));
 	}
 
 	const std::vector <std::unique_ptr <Node> > & children() const { return m_children; }
@@ -137,8 +139,10 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <Chunk>{new Chunk{*this}};
+		return std::make_unique<Chunk>(*this);
 	}
+
+	using Node::clone;
 
 private:
 	Chunk(const Chunk &other)
@@ -153,6 +157,7 @@ private:
 
 class ParamList : public Node {
 	friend class Function;
+	friend std::unique_ptr <ParamList> std::make_unique<ParamList>(const ParamList &);
 public:
 	ParamList(const yy::location &location = yy::location{}) : Node{location}, m_ellipsis{false} {}
 
@@ -212,8 +217,10 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <ParamList>{new ParamList{*this}};
+		return std::make_unique<ParamList>(*this);
 	}
+
+	using Node::clone;
 
 private:
 	ParamList(const ParamList &other)
@@ -226,24 +233,19 @@ private:
 };
 
 class ExprList : public Node {
+	friend std::unique_ptr <ExprList> std::make_unique<ExprList>(const ExprList &);
 public:
 	ExprList(const yy::location &location = yy::location{}) : Node{location} {}
 
-	ExprList(std::initializer_list <Node *> exprs, const yy::location &location = yy::location{}) : Node{location}
+	void append(std::unique_ptr <Node> &&n)
 	{
-		for (auto expr : exprs)
-			append(expr);
-	}
-
-	void append(Node *n)
-	{
-		m_exprs.emplace_back(n);
 		extendLocation(n->location());
+		m_exprs.emplace_back(std::move(n));
 	}
 
-	void prepend(Node *n)
+	void prepend(std::unique_ptr <Node> &&n)
 	{
-		m_exprs.emplace(m_exprs.begin(), n);
+		m_exprs.emplace(m_exprs.begin(), std::move(n));
 	}
 
 	bool empty() const { return m_exprs.empty(); }
@@ -278,8 +280,10 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <ExprList>{new ExprList{*this}};
+		return std::make_unique<ExprList>(*this);
 	}
+
+	using Node::clone;
 
 private:
 	ExprList(const ExprList &other)
@@ -293,9 +297,10 @@ private:
 };
 
 class NestedExpr : public Node {
+	friend std::unique_ptr <NestedExpr> std::make_unique<NestedExpr>(const NestedExpr &);
 public:
-	NestedExpr(Node *expr, const yy::location &location = yy::location{})
-		: Node{location}, m_expr{expr}
+	NestedExpr(std::unique_ptr <Node> &&expr, const yy::location &location = yy::location{})
+		: Node{location}, m_expr{std::move(expr)}
 	{
 	}
 
@@ -320,12 +325,12 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <Node>{new NestedExpr{*this}};
+		return std::make_unique<NestedExpr>(*this);
 	}
 
 private:
 	NestedExpr(const NestedExpr &other)
-		: Node{other.location()}, m_expr{other.m_expr->clone().release()}
+		: Node{other.location()}, m_expr{other.m_expr->clone()}
 	{
 	}
 
@@ -333,6 +338,7 @@ private:
 };
 
 class LValue : public Node {
+	friend std::unique_ptr <LValue> std::make_unique<LValue>(const LValue &);
 public:
 	enum class Type {
 		Bracket,
@@ -340,18 +346,18 @@ public:
 		Name,
 	};
 
-	LValue(Node *tableExpr, Node *keyExpr, const yy::location &location = yy::location{})
-		: Node{location}, m_type{Type::Bracket}, m_tableExpr{tableExpr}, m_keyExpr{keyExpr}
+	LValue(std::unique_ptr <Node> &&tableExpr, std::unique_ptr <Node> &&keyExpr, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Bracket}, m_tableExpr{std::move(tableExpr)}, m_keyExpr{std::move(keyExpr)}
 	{
 	}
 
-	LValue(Node *tableExpr, const std::string &fieldName, const yy::location &location = yy::location{})
-		: Node{location}, m_type{Type::Dot}, m_tableExpr{tableExpr}, m_name{fieldName}
+	LValue(std::unique_ptr <Node> &&tableExpr, const std::string &fieldName, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Dot}, m_tableExpr{std::move(tableExpr)}, m_name{fieldName}
 	{
 	}
 
-	LValue(Node *tableExpr, std::string &&fieldName, const yy::location &location = yy::location{})
-		: Node{location}, m_type{Type::Dot}, m_tableExpr{tableExpr}, m_name{std::move(fieldName)}
+	LValue(std::unique_ptr <Node> &&tableExpr, std::string &&fieldName, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Dot}, m_tableExpr{std::move(tableExpr)}, m_name{std::move(fieldName)}
 	{
 	}
 
@@ -422,8 +428,10 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <LValue>{new LValue{*this}};
+		return std::make_unique<LValue>(*this);
 	}
+
+	using Node::clone;
 
 private:
 	LValue(const LValue &other)
@@ -453,25 +461,20 @@ private:
 };
 
 class VarList : public Node {
+	friend std::unique_ptr <VarList> std::make_unique<VarList>(const VarList &);
 public:
 	VarList(const yy::location &location = yy::location{}) : Node{location} {}
-
-	VarList(std::initializer_list <LValue *> vars, const yy::location &location = yy::location{}) : Node{location}
-	{
-		for (auto v : vars)
-			append(v);
-	}
 
 	VarList(std::initializer_list <const char *> varNames, const yy::location &location = yy::location{}) : Node{location}
 	{
 		for (auto varName : varNames)
-			append(new LValue{varName});
+			append(std::make_unique<LValue>(varName));
 	}
 
-	void append(LValue *lval)
+	void append(std::unique_ptr <LValue> &&lval)
 	{
-		m_vars.emplace_back(lval);
 		extendLocation(lval->location());
+		m_vars.emplace_back(std::move(lval));
 	}
 
 	const std::vector <std::unique_ptr <LValue> > & vars() const
@@ -506,15 +509,17 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <VarList>{new VarList{*this}};
+		return std::make_unique<VarList>(*this);
 	}
+
+	using Node::clone;
 
 private:
 	VarList(const VarList &other)
 		: Node{other.location()}
 	{
 		for (const auto &n : other.m_vars)
-			m_vars.emplace_back(static_cast<LValue *>(n->clone().release()));
+			m_vars.emplace_back(n->clone<LValue>());
 	}
 
 	std::vector <std::unique_ptr <LValue> > m_vars;
@@ -540,47 +545,42 @@ public:
 };
 
 class Assignment : public Node {
+	friend std::unique_ptr <Assignment> std::make_unique<Assignment>(const Assignment &);
 public:
-	Assignment(AST::LValue *lval, Node *expr, const yy::location &location = yy::location{})
-		: Node{location}, m_varList{new VarList{}}, m_exprList{new ExprList{}}, m_local{false}
+	Assignment(std::unique_ptr <LValue> &&lval, std::unique_ptr <Node> &&expr, const yy::location &location = yy::location{})
+		: Node{location}, m_varList{std::make_unique<VarList>()}, m_exprList{std::make_unique<ExprList>()}, m_local{false}
 	{
-		m_varList->append(lval);
-		m_exprList->append(expr);
-	}
-
-	Assignment(const std::string &name, Node *expr, const yy::location &location = yy::location{})
-		: Node{location}, m_varList{new VarList{}}, m_exprList{new ExprList{}}, m_local{false}
-	{
-		m_varList->append(new LValue{name}); //TODO name location
-		m_exprList->append(expr);
-	}
-
-	Assignment(const std::string &dstVar, const std::string &srcVar, const yy::location &location = yy::location{})
-		: Assignment{dstVar, new LValue{srcVar}, location} //TODO dstVar, srcVar location
-	{
+		m_varList->append(std::move(lval));
+		m_exprList->append(std::move(expr));
 	}
 
 	Assignment(const std::string &name, std::unique_ptr <Node> &&expr, const yy::location &location = yy::location{})
-		: Assignment{name, expr.release(), location} // TODO name location
+		: Node{location}, m_varList{std::make_unique<VarList>()}, m_exprList{std::make_unique<ExprList>()}, m_local{false}
+	{
+		m_varList->append(std::make_unique<LValue>(name)); //TODO name location
+		m_exprList->append(std::move(expr));
+	}
+
+	Assignment(const std::string &dstVar, const std::string &srcVar, const yy::location &location = yy::location{})
+		: Assignment{dstVar, std::make_unique<LValue>(srcVar), location} //TODO dstVar, srcVar location
 	{
 	}
 
-	Assignment(VarList *vl, ExprList *el, const yy::location &location = yy::location{})
-		: Node{location}, m_varList{vl}, m_exprList{el}, m_local{false}
+	Assignment(std::unique_ptr <VarList> &&vl, std::unique_ptr <ExprList> &&el, const yy::location &location = yy::location{})
+		: Node{location}, m_varList{std::move(vl)}, m_exprList{std::move(el)}, m_local{false}
 	{
 		if (!m_exprList)
-			m_exprList.reset(new ExprList{});
+			m_exprList = std::make_unique<ExprList>();
 	}
 
-	Assignment(ParamList *pl, ExprList *el, const yy::location &location = yy::location{})
-		: Node{location}, m_varList{new VarList{}}, m_exprList{el}, m_local{true}
+	Assignment(std::unique_ptr <ParamList> &&pl, std::unique_ptr <ExprList> &&el, const yy::location &location = yy::location{})
+		: Node{location}, m_varList{std::make_unique<VarList>()}, m_exprList{std::move(el)}, m_local{true}
 	{
 		for (const auto &name : pl->names())
-			m_varList->append(new LValue{name.first, name.second});
-		delete pl;
+			m_varList->append(std::make_unique<LValue>(name.first, name.second));
 
 		if (!m_exprList)
-			m_exprList.reset(new ExprList{});
+			m_exprList = std::make_unique<ExprList>();
 	}
 
 	bool isLocal() const { return m_local; }
@@ -620,14 +620,14 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <Assignment>{new Assignment{*this}};
+		return std::make_unique<Assignment>(*this);
 	}
 
 private:
 	Assignment(const Assignment &other)
 		: Node{other.location()},
-		  m_varList{static_cast<VarList *>(other.m_varList->clone().release())},
-		  m_exprList{static_cast<ExprList *>(other.m_exprList->clone().release())},
+		  m_varList{other.m_varList->clone<VarList>()},
+		  m_exprList{other.m_exprList->clone<ExprList>()},
 		  m_local{other.m_local}
 	{
 	}
@@ -808,9 +808,10 @@ private:
 };
 
 class FunctionCall : public Node {
+	friend std::unique_ptr <FunctionCall> std::make_unique<FunctionCall>(const FunctionCall &);
 public:
-	FunctionCall(Node *funcExpr, ExprList *args, const yy::location &location = yy::location{})
-		: Node{location}, m_functionExpr{funcExpr}, m_args{args}
+	FunctionCall(std::unique_ptr <Node> &&funcExpr, std::unique_ptr <ExprList> &&args, const yy::location &location = yy::location{})
+		: Node{location}, m_functionExpr{std::move(funcExpr)}, m_args{std::move(args)}
 	{
 	}
 
@@ -846,14 +847,14 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <FunctionCall>(new FunctionCall{*this});
+		return std::make_unique<FunctionCall>(*this);
 	}
 
 protected:
 	FunctionCall(const FunctionCall &other)
 		: Node{other.location()},
 		  m_functionExpr{other.m_functionExpr->clone()},
-		  m_args{static_cast<ExprList *>(other.m_args->clone().release())}
+		  m_args{other.m_args->clone<ExprList>()}
 	{
 	}
 
@@ -868,14 +869,15 @@ private:
 };
 
 class MethodCall : public FunctionCall {
+	friend std::unique_ptr <MethodCall> std::make_unique<MethodCall>(const MethodCall &);
 public:
-	MethodCall(Node *funcExpr, ExprList *args, const std::string &methodName, const yy::location &location = yy::location{})
-		: FunctionCall{funcExpr, args, location}, m_methodName{methodName}
+	MethodCall(std::unique_ptr <Node> &&funcExpr, std::unique_ptr <ExprList> &&args, const std::string &methodName, const yy::location &location = yy::location{})
+		: FunctionCall{std::move(funcExpr), std::move(args), location}, m_methodName{methodName}
 	{
 	}
 
-	MethodCall(Node *funcExpr, ExprList *args, std::string &&methodName, const yy::location &location = yy::location{})
-		: FunctionCall{funcExpr, args, location}, m_methodName{std::move(methodName)}
+	MethodCall(std::unique_ptr <Node> &&funcExpr, std::unique_ptr <ExprList> &&args, std::string &&methodName, const yy::location &location = yy::location{})
+		: FunctionCall{std::move(funcExpr), std::move(args), location}, m_methodName{std::move(methodName)}
 	{
 	}
 
@@ -909,16 +911,17 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <MethodCall>{new MethodCall{*this}};
+		return std::make_unique<MethodCall>(*this);
 	}
 
 	std::unique_ptr <FunctionCall> cloneAsFunctionCall() const
 	{
-		LValue *fnCallExpr = new LValue{cloneCallExpr().release(), m_methodName};
-		ExprList *methodArgs = new ExprList{cloneCallExpr().release()};
+		auto fnCallExpr = std::make_unique<LValue>(cloneCallExpr(), m_methodName);
+		auto methodArgs = std::make_unique<ExprList>();
+		methodArgs->append(cloneCallExpr());
 		for (const auto &e : args().exprs())
-			methodArgs->append(e->clone().release());
-		return std::make_unique<FunctionCall>(fnCallExpr, methodArgs, location());
+			methodArgs->append(e->clone());
+		return std::make_unique<FunctionCall>(std::move(fnCallExpr), std::move(methodArgs), location());
 	}
 
 private:
@@ -932,6 +935,7 @@ private:
 };
 
 class Field : public Node {
+	friend std::unique_ptr <Field> std::make_unique<Field>(const Field &);
 public:
 	enum class Type {
 		Brackets,
@@ -939,18 +943,18 @@ public:
 		NoIndex,
 	};
 
-	Field(Node *expr, Node *val, const yy::location &location = yy::location{})
-		: Node{location}, m_type{Type::Brackets}, m_keyExpr{expr}, m_valueExpr{val}
+	Field(std::unique_ptr <Node> &&expr, std::unique_ptr <Node> &&val, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Brackets}, m_keyExpr{std::move(expr)}, m_valueExpr{std::move(val)}
 	{
 	}
 
-	Field(const std::string &s, Node *val, const yy::location &location = yy::location{})
-		: Node{location}, m_type{Type::Literal}, m_fieldName{s}, m_valueExpr{val}
+	Field(const std::string &s, std::unique_ptr <Node> &&val, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::Literal}, m_fieldName{s}, m_valueExpr{std::move(val)}
 	{
 	}
 
-	Field(Node *val, const yy::location &location = yy::location{})
-		: Node{location}, m_type{Type::NoIndex}, m_keyExpr{nullptr}, m_valueExpr{val}
+	Field(std::unique_ptr <Node> &&val, const yy::location &location = yy::location{})
+		: Node{location}, m_type{Type::NoIndex}, m_keyExpr{nullptr}, m_valueExpr{std::move(val)}
 	{
 	}
 
@@ -1004,8 +1008,10 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <Field>{new Field{*this}};
+		return std::make_unique<Field>(*this);
 	}
+
+	using Node::clone;
 
 private:
 	Field(const Field &other)
@@ -1035,10 +1041,11 @@ private:
 };
 
 class TableCtor : public Node {
+	friend std::unique_ptr <TableCtor> std::make_unique<TableCtor>(const TableCtor &);
 public:
 	TableCtor(const yy::location &location = yy::location{}) : Node{location} {}
 
-	void append(Field *f) { m_fields.emplace_back(f); }
+	void append(std::unique_ptr <Field> &&f) { m_fields.emplace_back(std::move(f)); }
 
 	void print(unsigned indent = 0) const override
 	{
@@ -1071,20 +1078,21 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <TableCtor>{new TableCtor{*this}};
+		return std::make_unique<TableCtor>(*this);
 	}
 private:
 	TableCtor(const TableCtor &other)
 		: Node{other.location()}
 	{
 		for (const auto &f : other.m_fields)
-			m_fields.emplace_back(static_cast<Field *>(f->clone().release()));
+			m_fields.emplace_back(f->clone<Field>());
 	}
 
 	std::vector <std::unique_ptr <Field> > m_fields;
 };
 
 class BinOp : public Node {
+	friend std::unique_ptr <BinOp> std::make_unique<BinOp>(const BinOp &);
 public:
 	EnumClass(Type, unsigned,
 		Or,
@@ -1104,8 +1112,8 @@ public:
 		Exponentation
 	);
 
-	BinOp(Type t, Node *left, Node *right, const yy::location &location = yy::location{})
-		: Node{location}, m_type{t}, m_left{left}, m_right{right}
+	BinOp(Type t, std::unique_ptr <Node> &&left, std::unique_ptr <Node> &&right, const yy::location &location = yy::location{})
+		: Node{location}, m_type{t}, m_left{std::move(left)}, m_right{std::move(right)}
 	{
 	}
 
@@ -1171,7 +1179,7 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <BinOp>{new BinOp{*this}};
+		return std::make_unique<BinOp>(*this);
 	}
 
 private:
@@ -1189,6 +1197,7 @@ private:
 };
 
 class UnOp : public Node {
+	friend std::unique_ptr <UnOp> std::make_unique<UnOp>(const UnOp &);
 public:
 	EnumClass(Type, unsigned,
 		Negate,
@@ -1196,8 +1205,8 @@ public:
 		Length
 	);
 
-	UnOp(Type t, Node *op, const yy::location &location = yy::location{})
-		: Node{location}, m_type{t}, m_operand{op}
+	UnOp(Type t, std::unique_ptr <Node> &&op, const yy::location &location = yy::location{})
+		: Node{location}, m_type{t}, m_operand{std::move(op)}
 	{
 	}
 
@@ -1231,7 +1240,7 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <UnOp>{new UnOp{*this}};
+		return std::make_unique<UnOp>(*this);
 	}
 
 private:
@@ -1271,9 +1280,10 @@ public:
 };
 
 class Return : public Node {
+	friend std::unique_ptr <Return> std::make_unique<Return>(const Return &);
 public:
-	Return(ExprList *exprList, const yy::location &location = yy::location{})
-		: Node{location}, m_exprList{exprList}
+	Return(std::unique_ptr <ExprList> &&exprList, const yy::location &location = yy::location{})
+		: Node{location}, m_exprList{std::move(exprList)}
 	{
 	}
 
@@ -1293,13 +1303,13 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <Return>{new Return{*this}};
+		return std::make_unique<Return>(*this);
 	}
 
 private:
 	Return(const Return &other)
 		: Node{other.location()},
-		  m_exprList{other.m_exprList ? static_cast<ExprList *>(other.m_exprList->clone().release()) : nullptr}
+		  m_exprList{other.m_exprList ? other.m_exprList->clone<ExprList>() : nullptr}
 	{
 	}
 
@@ -1307,6 +1317,7 @@ private:
 };
 
 class FunctionName : public Node {
+	friend std::unique_ptr <FunctionName> std::make_unique<FunctionName>(const FunctionName &);
 public:
 	FunctionName(std::string &&base, const yy::location &location = yy::location{})
 		: Node{location}
@@ -1351,8 +1362,10 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <FunctionName>{new FunctionName{*this}};
+		return std::make_unique<FunctionName>(*this);
 	}
+
+	using Node::clone;
 
 private:
 	FunctionName(const FunctionName &other)
@@ -1367,9 +1380,10 @@ private:
 };
 
 class Function : public Node {
+	friend std::unique_ptr <Function> std::make_unique<Function>(const Function &);
 public:
-	Function(ParamList *params, Chunk *chunk, const yy::location &location = yy::location{})
-		: Node{location}, m_params{params}, m_chunk{chunk}, m_local{false}
+	Function(std::unique_ptr <ParamList> &&params, std::unique_ptr <Chunk> &&chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_params{std::move(params)}, m_chunk{std::move(chunk)}, m_local{false}
 	{
 	}
 
@@ -1407,12 +1421,12 @@ public:
 
 	void setName(std::string &&name)
 	{
-		m_name.reset(new FunctionName{std::move(name)});
+		m_name = std::make_unique<FunctionName>(std::move(name));
 	}
 
-	void setName(FunctionName *name)
+	void setName(std::unique_ptr <FunctionName> &&name)
 	{
-		m_name.reset(name);
+		m_name = std::move(name);
 	}
 
 	void print(unsigned indent = 0) const override
@@ -1464,15 +1478,17 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <Function>{new Function{*this}};
+		return std::make_unique<Function>(*this);
 	}
+
+	using Node::clone;
 
 private:
 	Function(const Function &other)
 		: Node{other.location()},
-		  m_name{other.m_name ? static_cast<FunctionName *>(other.m_name->clone().release()) : nullptr},
-		  m_params{other.m_params ? static_cast<ParamList *>(other.m_params->clone().release()) : nullptr},
-		  m_chunk{other.m_chunk ? static_cast<Chunk *>(other.m_chunk->clone().release()) : nullptr},
+		  m_name{other.m_name ? other.m_name->clone<FunctionName>() : nullptr},
+		  m_params{other.m_params ? other.m_params->clone<ParamList>() : nullptr},
+		  m_chunk{other.m_chunk ? other.m_chunk->clone<Chunk>() : nullptr},
 		  m_local{other.m_local}
 	{
 	}
@@ -1484,12 +1500,13 @@ private:
 };
 
 class If : public Node {
+	friend std::unique_ptr <If> std::make_unique<If>(const If &);
 public:
-	If(Node *condition, Chunk *chunk, const yy::location &location = yy::location{})
+	If(std::unique_ptr <Node> &&condition, std::unique_ptr <Chunk> &&chunk, const yy::location &location = yy::location{})
 		: Node{location}
 	{
-		m_conditions.emplace_back(condition);
-		appendChunk(chunk);
+		m_conditions.emplace_back(std::move(condition));
+		appendChunk(std::move(chunk));
 	}
 
 	bool hasElse() const { return m_else.get() != nullptr; }
@@ -1497,12 +1514,12 @@ public:
 	const std::vector <std::unique_ptr <Chunk> > & chunks() const { return m_chunks; }
 	const std::vector <std::unique_ptr <Node> > & conditions() const { return m_conditions; }
 	const Chunk & elseNode() const { return *m_else; }
-	void setElse(Chunk *chunk) { m_else.reset(chunk); }
+	void setElse(std::unique_ptr <Chunk> &&chunk) { m_else = std::move(chunk); }
 
-	void addElseIf(Node *condition, Chunk *chunk)
+	void addElseIf(std::unique_ptr <Node> &&condition, std::unique_ptr <Chunk> &&chunk)
 	{
-		m_conditions.emplace_back(condition);
-		appendChunk(chunk);
+		m_conditions.emplace_back(std::move(condition));
+		appendChunk(std::move(chunk));
 	}
 
 	void print(unsigned indent = 0) const override
@@ -1531,16 +1548,16 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <If>{new If{*this}};
+		return std::make_unique<If>(*this);
 	}
 
 private:
-	void appendChunk(Chunk *chunk)
+	void appendChunk(std::unique_ptr <Chunk> &&chunk)
 	{
 		if (chunk)
-			m_chunks.emplace_back(chunk);
+			m_chunks.emplace_back(std::move(chunk));
 		else
-			m_chunks.emplace_back(static_cast<Chunk *>(Chunk::Empty.clone().release()));
+			m_chunks.emplace_back(Chunk::Empty.clone<Chunk>());
 	}
 
 	If(const If &other)
@@ -1549,9 +1566,9 @@ private:
 		for (const auto &n : other.m_conditions)
 			m_conditions.emplace_back(n->clone());
 		for (const auto &c : other.m_chunks)
-			m_chunks.emplace_back(static_cast<Chunk *>(c->clone().release()));
+			m_chunks.emplace_back(c->clone<Chunk>());
 		if (other.m_else)
-			m_else = std::unique_ptr <Chunk>(static_cast<Chunk *>(other.m_else->clone().release()));
+			m_else = other.m_else->clone<Chunk>();
 	}
 
 	std::vector <std::unique_ptr <Node> > m_conditions;
@@ -1560,9 +1577,10 @@ private:
 };
 
 class While : public Node {
+	friend std::unique_ptr <While> std::make_unique<While>(const While &);
 public:
-	While(Node *condition, Chunk *chunk, const yy::location &location = yy::location{})
-		: Node{location}, m_condition{condition}, m_chunk{chunk}
+	While(std::unique_ptr <Node> &&condition, std::unique_ptr <Chunk> &&chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_condition{std::move(condition)}, m_chunk{std::move(chunk)}
 	{
 	}
 
@@ -1582,14 +1600,14 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <While>{new While{*this}};
+		return std::make_unique<While>(*this);
 	}
 
 private:
 	While(const While &other)
 		: Node{other.location()},
 		  m_condition{other.m_condition->clone()},
-		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
+		  m_chunk{other.m_chunk->clone<Chunk>()}
 	{
 	}
 
@@ -1598,9 +1616,10 @@ private:
 };
 
 class Repeat : public Node {
+	friend std::unique_ptr <Repeat> std::make_unique<Repeat>(const Repeat &);
 public:
-	Repeat(Node *condition, Chunk *chunk, const yy::location &location = yy::location{})
-		: Node{location}, m_condition{condition}, m_chunk{chunk}
+	Repeat(std::unique_ptr <Node> &&condition, std::unique_ptr <Chunk> &&chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_condition{std::move(condition)}, m_chunk{std::move(chunk)}
 	{
 	}
 
@@ -1620,14 +1639,14 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <Repeat>{new Repeat{*this}};
+		return std::make_unique<Repeat>(*this);
 	}
 
 private:
 	Repeat(const Repeat &other)
 		: Node{other.location()},
 		  m_condition{other.m_condition->clone()},
-		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
+		  m_chunk{other.m_chunk->clone<Chunk>()}
 	{
 	}
 
@@ -1636,9 +1655,10 @@ private:
 };
 
 class For : public Node {
+	friend std::unique_ptr <For> std::make_unique<For>(const For &);
 public:
-	For(const std::string &iterator, Node *start, Node *limit, Node *step, Chunk *chunk, const yy::location &location = yy::location{})
-		: Node{location}, m_iterator{iterator}, m_start{start}, m_limit{limit}, m_step{step}, m_chunk{chunk}
+	For(const std::string &iterator, std::unique_ptr <Node> &&start, std::unique_ptr <Node> &&limit, std::unique_ptr <Node> &&step, std::unique_ptr <Chunk> &&chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_iterator{iterator}, m_start{std::move(start)}, m_limit{std::move(limit)}, m_step{std::move(step)}, m_chunk{std::move(chunk)}
 	{
 		if (!m_step)
 			return;
@@ -1696,13 +1716,13 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <For>{new For{*this}};
+		return std::make_unique<For>(*this);
 	}
 
 	std::unique_ptr <BinOp> cloneCondition() const
 	{
 		if (!m_step)
-			return std::unique_ptr <BinOp>{new BinOp{BinOp::Type::LessEqual, new LValue{iterator()}, limitExpr().clone().release()}};
+			return std::make_unique<BinOp>(BinOp::Type::LessEqual, std::make_unique<LValue>(iterator()), limitExpr().clone());
 
 		auto binopType = [](auto &&v) {
 			if (v < 0)
@@ -1720,15 +1740,15 @@ public:
 		}
 
 		assert(op != BinOp::Type::_size);
-		return std::unique_ptr <BinOp>{new BinOp{op, new LValue{iterator()}, limitExpr().clone().release()}};
+		return std::make_unique<BinOp>(op, std::make_unique<LValue>(iterator()), limitExpr().clone());
 	}
 
 	std::unique_ptr <Assignment> cloneStepExpr() const
 	{
 		if (!m_step)
-			return std::make_unique<Assignment>(m_iterator, new BinOp{BinOp::Type::Plus, new LValue{iterator()}, new IntValue{1}});
+			return std::make_unique<Assignment>(m_iterator, std::make_unique<BinOp>(BinOp::Type::Plus, std::make_unique<LValue>(iterator()), std::make_unique<IntValue>(1)));
 
-		return std::make_unique<Assignment>(m_iterator, new BinOp{BinOp::Type::Plus, new LValue{iterator()}, stepExpr().clone().release()});
+		return std::make_unique<Assignment>(m_iterator, std::make_unique<BinOp>(BinOp::Type::Plus, std::make_unique<LValue>(iterator()), stepExpr().clone()));
 	}
 
 private:
@@ -1738,7 +1758,7 @@ private:
 		  m_start{other.m_start->clone()},
 		  m_limit{other.m_limit->clone()},
 		  m_step{other.m_step ? other.m_step->clone() : nullptr},
-		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
+		  m_chunk{other.m_chunk->clone<Chunk>()}
 	{
 	}
 
@@ -1748,9 +1768,10 @@ private:
 };
 
 class ForEach : public Node {
+	friend std::unique_ptr <ForEach> std::make_unique<ForEach>(const ForEach &);
 public:
-	ForEach(ParamList *variables, ExprList *exprs, Chunk *chunk, const yy::location &location = yy::location{})
-		: Node{location}, m_variables{variables}, m_exprs{exprs}, m_chunk{chunk} {}
+	ForEach(std::unique_ptr <ParamList> &&variables, std::unique_ptr <ExprList> &&exprs, std::unique_ptr <Chunk> &&chunk, const yy::location &location = yy::location{})
+		: Node{location}, m_variables{std::move(variables)}, m_exprs{std::move(exprs)}, m_chunk{std::move(chunk)} {}
 
 	void print(unsigned indent = 0) const override
 	{
@@ -1775,30 +1796,30 @@ public:
 
 	std::unique_ptr <Node> clone() const override
 	{
-		return std::unique_ptr <ForEach>{new ForEach{*this}};
+		return std::make_unique<ForEach>(*this);
 	}
 
 	std::unique_ptr <ParamList> cloneVariables() const
 	{
-		return std::unique_ptr <ParamList>{static_cast<ParamList *>(m_variables->clone().release())};
+		return m_variables->clone<ParamList>();
 	}
 
 	std::unique_ptr <ExprList> cloneExprList() const
 	{
-		return std::unique_ptr <ExprList>{static_cast<ExprList *>(m_exprs->clone().release())};
+		return m_exprs->clone<ExprList>();
 	}
 
 	std::unique_ptr <Chunk> cloneChunk() const
 	{
-		return std::unique_ptr <Chunk>{static_cast<Chunk *>(m_chunk->clone().release())};
+		return m_chunk->clone<Chunk>();
 	}
 
 private:
 	ForEach(const ForEach &other)
 		: Node{other.location()},
-		  m_variables{static_cast<ParamList *>(other.m_variables->clone().release())},
-		  m_exprs{static_cast<ExprList *>(other.m_exprs->clone().release())},
-		  m_chunk{static_cast<Chunk *>(other.m_chunk->clone().release())}
+		  m_variables{other.m_variables->clone<ParamList>()},
+		  m_exprs{other.m_exprs->clone<ExprList>()},
+		  m_chunk{other.m_chunk->clone<Chunk>()}
 	{
 	}
 

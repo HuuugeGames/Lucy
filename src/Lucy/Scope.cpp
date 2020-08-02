@@ -21,7 +21,7 @@ Scope * Scope::functionScope()
 
 Scope * Scope::push()
 {
-	m_children.emplace_back(new Scope{this, m_function});
+	m_children.emplace_back(std::make_unique<Scope>(this, m_function));
 	return m_children.back().get();
 }
 
