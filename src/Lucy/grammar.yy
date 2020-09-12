@@ -28,6 +28,7 @@ class Driver;
 %skeleton "lalr1.cc"
 
 %defines
+%define define_location_comparison true
 %define api.parser.class {Parser}
 %define api.token.constructor
 %define api.value.type variant
