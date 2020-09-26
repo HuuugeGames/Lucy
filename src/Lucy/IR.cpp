@@ -42,9 +42,8 @@ std::ostream & operator << (std::ostream &os, const IR::Triplet &t)
 		case IR::Op::Pop: os << "pop " << t.operands[0]; break;
 		case IR::Op::CallUnknownResults: os << "call_varres " << t.operands[0] << ' ' << t.operands[1]; break;
 		case IR::Op::Return: os << "return " << t.operands[0]; break;
-		case IR::Op::Test: os << "test " << t.operands[0]; break;
 		case IR::Op::Jump: os << "jump " << t.operands[0]; break;
-		case IR::Op::JumpTrue: os << "jump_true " << t.operands[0]; break;
+		case IR::Op::JumpCond: os << "jump_true " << t.operands[0] << ' ' << t.operands[1]; break;
 		case IR::Op::Call: {
 			const long argResultCnt = std::get<long>(std::get<ValueVariant>(t.operands[1].valueRef));
 			os << "call " << t.operands[0] << ' ' << ((argResultCnt >> 16) & 0xffff) << ' ' << (argResultCnt & 0xffff);

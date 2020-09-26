@@ -139,9 +139,8 @@ void BasicBlock::finalize(BBContext &ctx)
 			process(ctx, *ctx.current->condition);
 			ctx.requiredResults.pop_back();
 
-			ctx.emplaceTriplet(IR::Op::Test, ctx.stack.back());
+			ctx.emplaceTriplet(IR::Op::JumpCond, ctx.stack.back(), ValueVariant{ctx.current->nextBlock[0]->label()});
 			ctx.stack.pop_back();
-			ctx.emplaceTriplet(IR::Op::JumpTrue, ValueVariant{ctx.current->nextBlock[0]->label()});
 			ctx.emplaceTriplet(IR::Op::Jump, ValueVariant{ctx.current->nextBlock[1]->label()});
 			break;
 		}
@@ -164,11 +163,6 @@ void BasicBlock::finalize(BBContext &ctx)
 			ctx.emplaceTriplet(IR::Op::Return, ValueVariant{resultCnt});
 
 			break;
-		}
-
-		default: {
-			if (ctx.current->nextBlock[0])
-				ctx.emplaceTriplet(IR::Op::Jump, ValueVariant{ctx.current->nextBlock[0]->label()});
 		}
 	}
 }

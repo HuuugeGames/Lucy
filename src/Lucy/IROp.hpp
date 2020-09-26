@@ -37,9 +37,8 @@ EnumClass(Op, unsigned,
 	CallUnknownResults,
 	Return,
 
-	Test,
 	Jump,
-	JumpTrue
+	JumpCond
 );
 
 bool isArithmeticBinaryOp(Op op);
