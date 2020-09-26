@@ -1,0 +1,1 @@
+[GlobalFunctionDefinition] ./test_fibo.lua:1.10-13 : function definition in global scope: "fibo"
